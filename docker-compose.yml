@@ -1,0 +1,36 @@
+services:
+  node-server:
+    build: .
+    container_name: node-server
+    ports:
+      - "8000:8000"
+
+  db:
+    image: mysql:8.0
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: tutorial
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "3307:3306"  # ใช้ 3307 เพราะเครื่องคุณมี MySQL Windows รันอยู่
+    volumes:
+      - mysql_data_test:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+
+volumes:
+  mysql_data_test:
+    driver: local
+
