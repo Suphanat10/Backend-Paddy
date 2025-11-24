@@ -1,8 +1,12 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
 const app = express();
+import authRoutes from "./app/routes/auth.routes.js";
+import profileRoutes from "./app/routes/profile.routes.js";
 
-const PORT = process.env.PORT || 8080;
+
+
+const PORT = process.env.PORT || 8000;
 
 app.set("trust proxy", true);
 app.use(
@@ -20,11 +24,12 @@ app.use(cors({
   credentials: true
 }));
 
+authRoutes(app);
+profileRoutes(app);
+
+
 app.listen(PORT, () => {
   console.log(`Server listening on ${PORT}`);
 });
 
 
-require("./app/routes/auth.routes")(app);
-require("./app/routes/data.routes")(app);
-require("./app/routes/agriculture.routes")(app);
