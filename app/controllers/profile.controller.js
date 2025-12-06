@@ -76,6 +76,8 @@ export const getProfile = async (req, res) => {
             gender : true,
             position: true,
             birth_date: true,
+                        user_id_line: true
+
         },
       });
 
@@ -95,7 +97,7 @@ export const updateProfile = async (req, res) => {
   try {
       const user_id = req.user?.id;
 
-      const { first_name, last_name, phone_number, gender, birth_date , email } = req.body;
+      const { first_name, last_name, phone_number, gender , email } = req.body;
 
       if(!user_id) {
         return res.status(400).json({ message: "User ID missing in token" });
@@ -120,7 +122,6 @@ export const updateProfile = async (req, res) => {
             last_name,
             phone_number,
             gender,
-            birth_date,
             email
          },
        select: {
@@ -151,5 +152,62 @@ export const updateProfile = async (req, res) => {
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const getdataPofile_notification = async (req, res) => {
+  try {
+    const user_id = req.user?.id;
+
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+    const profile_notification = await prisma.account.findFirst({
+      where: { user_ID: user_id },
+      include: {
+        device_registrations: {
+          select: {
+            device_registrations_ID: true,
+            device_ID: true,        // field ธรรมดา
+            status: true,
+            Logs_Alert: true     // relation จาก schema
+          }
+        }
+      }
+    });
+
+  
+    
+
+
+    if (!profile_notification) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+
+      const result = {
+      profile: {
+        user_ID: profile_notification.user_ID,
+        first_name: profile_notification.first_name,
+        last_name: profile_notification.last_name,
+        email: profile_notification.email,
+        phone_number: profile_notification.phone_number,
+        position: profile_notification.position,
+      },
+      devices: profile_notification.device_registrations.map(device => ({
+        device_registrations_ID: device.device_registrations_ID,
+        device_ID: device.device_ID,
+        status: device.status,
+        logs_alert: device.Logs_Alert
+      }))
+    };
+    
+    return res.status(200).json(result);
+
+  } catch (error) {
+    console.error("Error fetching profile notification:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

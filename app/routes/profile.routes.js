@@ -2,6 +2,7 @@ import {
   changePassword,
   getProfile,
   updateProfile,
+  getdataPofile_notification
 } from "../controllers/profile.controller.js";
 import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
@@ -21,5 +22,7 @@ export default function (app) {
   );
 
   app.get("/api/profile", requireAuthMiddleware, getProfile);
-  app.put("/api/profile/update", requireAuthMiddleware, updateProfile);
+  app.post("/api/profile/update", requireAuthMiddleware, updateProfile);
+
+  app.get("/api/auth/me", requireAuthMiddleware, getdataPofile_notification);
 }

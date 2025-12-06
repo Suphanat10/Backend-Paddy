@@ -3,6 +3,9 @@ import cors from "cors";
 const app = express();
 import authRoutes from "./app/routes/auth.routes.js";
 import profileRoutes from "./app/routes/profile.routes.js";
+import FarmAreaRoutes from "./app/routes/FarmArea.routes.js";
+import settingRoutes from "./app/routes/setting.routes.js";
+import dataRoutes from "./app/routes/data.routes.js";
 
 
 
@@ -13,8 +16,9 @@ app.use(
   cors({
     origin: true,
     methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept"],
+    allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept"  , "Authorization"],
     credentials: true,
+
   })
 );
 app.use(express.json());
@@ -26,9 +30,12 @@ app.use(cors({
 
 authRoutes(app);
 profileRoutes(app);
+FarmAreaRoutes(app);
+settingRoutes(app);
+dataRoutes(app);
 
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on ${PORT}`);
 });
 

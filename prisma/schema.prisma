@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Account {
   user_ID              Int                    @id @default(autoincrement())
   first_name           String?                @db.VarChar(50)
@@ -49,9 +48,9 @@ model Farm {
   area             Float?  @db.Float
   farm_name        String? @db.VarChar(50)
   gender           String? @db.VarChar(50)
-  rice_variety     String? @db.VarChar(10)
-  planting_method  String? @db.VarChar(50)
-  soil_type        String? @db.VarChar(50)
+  rice_variety     String? @db.VarChar(250)
+  planting_method  String? @db.VarChar(250)
+  soil_type        String? @db.VarChar(250)
   water_management String? @db.VarChar(100)
   address          String? @db.Text
   Area             Area[]
@@ -127,9 +126,10 @@ model Sensor_Type {
 model User_Settings {
   user_settings_ID        Int                  @id @default(autoincrement())
   data_send_interval_days String               @db.VarChar(50)
-  Water_level             Float?               @db.Float
+  Water_level_min         Float?               @db.Float
   updated_at              Boolean?             @default(true)
-  device_registrations_ID Int
+  device_registrations_ID Int                   
+  Water_level_mxm         Float                @db.Float
   device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, map: "User_Settings_ibfk_1")
 
   @@index([device_registrations_ID], map: "device_registrations_ID")
@@ -138,7 +138,7 @@ model User_Settings {
 model device_registrations {
   device_registrations_ID Int               @id @default(autoincrement())
   user_ID                 Int
-  device_ID               String            @db.VarChar(50)
+  device_ID               Int
   status                  String?           @default("active") @db.VarChar(20)
   area_id                 Int
   registered_at           DateTime?         @default(now()) @db.DateTime(0)

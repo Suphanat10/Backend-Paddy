@@ -1,7 +1,5 @@
-import { updateFarmArea ,
-        
-
- } from "../controllers/FarmArea.Controller";
+import {  getFarmAreas , createFarmArea , updateFarmArea , deleteFarmArea , createSubArea , deleteSubArea , updateSubArea , registerDeviceToFarmArea
+ } from "../controllers/FarmArea.Controller.js";
 import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
 export default function (app) {
@@ -12,6 +10,58 @@ export default function (app) {
     );
     next();
   });
+
+  app.post(
+    "/api/farm-area/create",
+    requireAuthMiddleware,
+    createFarmArea
+  );
+
+  app.post(
+    "/api/farm-area/update",
+    requireAuthMiddleware,
+    updateFarmArea
+  );
+
+
+  app.get(
+    "/api/farm-area/list",
+    requireAuthMiddleware,
+    getFarmAreas
+  );
+
+  app.post(
+    "/api/farm-area/delete",
+    requireAuthMiddleware,
+    deleteFarmArea
+  );
+
+  app.post(
+    "/api/farm-area/create-sub-area",
+    requireAuthMiddleware,
+    createSubArea
+  );  
+
+
+  app.post(
+    "/api/farm-area/delete-sub-area",
+    requireAuthMiddleware,
+    deleteSubArea
+  );
+  
+
+  app.post(
+    "/api/farm-area/update-sub-area",
+    requireAuthMiddleware,
+    updateSubArea
+  );
+
+
+  app.post(
+    "/api/register-device",
+    requireAuthMiddleware,
+    registerDeviceToFarmArea
+  );
 
  
 
