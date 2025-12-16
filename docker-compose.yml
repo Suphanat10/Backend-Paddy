@@ -13,7 +13,7 @@ services:
       MYSQL_DATABASE: tutorial
       MYSQL_ROOT_HOST: "%"
     ports:
-      - "3307:3306"  # ใช้ 3307 เพราะเครื่องคุณมี MySQL Windows รันอยู่
+      - "3307:3306"  
     volumes:
       - mysql_data_test:/var/lib/mysql
 
@@ -26,7 +26,7 @@ services:
       PMA_USER: root
       PMA_PASSWORD: root
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - db
 
