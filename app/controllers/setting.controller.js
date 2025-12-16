@@ -60,27 +60,22 @@ export const getdataSetting = async (req, res) => {
 export const updateSetting = async (req, res) => {
   try {
     const user_id = req.user?.id;
-    const { device_id, Water_level_min, Water_level_max } = req.body;
+    const { device_registrations_id, Water_level_min, Water_level_max , data_send_interval_days , growth_analysis_period } = req.body;
 
-    const device_registrations_id = parseInt(device_id); // แก้ไขตรงนี้
 
     if (!user_id) {
       return res.status(400).json({ message: "User ID missing in token" });
     }
 
-    if (!device_id || Water_level_min == null || Water_level_max == null) {
-      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-    }
 
   const device = await prisma.device_registrations.findFirst({
   where: {
-    device_registrations_ID: Number(device_registrations_id),  // ⭐ ตัวใหญ่
+    device_registrations_ID: parseInt(device_registrations_id), 
     user_ID: user_id
   }
 });
 
 
-console.log("Device found:", device);
     if (!device) {
       return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้" });
     }
@@ -98,7 +93,9 @@ console.log("Device found:", device);
         where: { user_settings_ID: existingSetting.user_settings_ID },
         data: {
           Water_level_min,
-          Water_level_mxm :Water_level_max
+          data_send_interval_days : parseFloat(data_send_interval_days),
+          Water_level_mxm :Water_level_max,
+          growth_analysis_period : parseFloat(growth_analysis_period)
         }
       });
     } else {
@@ -107,7 +104,9 @@ console.log("Device found:", device);
         data: {
           device_registrations_ID: device.device_registrations_ID,
           Water_level_min,
-          Water_level_mxm :Water_level_max
+          data_send_interval_days : parseFloat(data_send_interval_days),
+          Water_level_mxm :Water_level_max,
+          growth_analysis_period : parseFloat(growth_analysis_period)
         }
       });
     }

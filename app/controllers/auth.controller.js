@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import config from "../config/auth.config.js";
 
@@ -129,6 +130,101 @@ export const logout = (req, res) => {
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     console.error("Logout error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const OTP_EXPIRE_MIN = 1; // อายุ OTP 1 นาที
+const OTP_COOLDOWN_SEC = 60; // ขอใหม่ได้ทุก 60 วิ
+
+export const RequestOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "กรุณากรอกอีเมล" });
+    }
+
+    // ============================
+    // 1) ตรวจสอบว่ามีผู้ใช้หรือไม่
+    // ============================
+    const user = await prisma.account.findFirst({
+      where: { email }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "ไม่พบบัญชีผู้ใช้" });
+    }
+
+    // ============================
+    // 2) ตรวจสอบ rate limit (กันสแปม)
+    // ============================
+    const lastOtp = await prisma.oTP.findFirst({
+      where: { user_id: user.user_ID },
+      orderBy: { otp_id: "desc" },
+    });
+
+    if (lastOtp) {
+      const now = new Date();
+
+      // OTP ล่าสุดหมดอายุเวลา lastOtp.expired_at
+      // เวลาที่ขอเก่า + cooldown > ตอนนี้ ? ยังไม่อนุญาตให้ขอใหม่
+      const lastCooldownEnd = new Date(
+        lastOtp.expired_at.getTime() - OTP_EXPIRE_MIN * 60000 + OTP_COOLDOWN_SEC * 1000
+      );
+
+      if (lastCooldownEnd > now) {
+        return res.status(429).json({ message: "กรุณารอเวลา 1 นาที ก่อนขอ OTP ใหม่" });
+      }
+    }
+
+    // ============================
+    // 3) สร้าง OTP แบบสุ่ม 6 หลัก
+    // ============================
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await prisma.oTP.create({
+      data: {
+        user_id: user.user_ID,
+        otp_code: otpCode,
+        expired_at: new Date(Date.now() + OTP_EXPIRE_MIN * 60000),
+      },
+    });
+
+    // ============================
+    // 4) ส่งอีเมล OTP
+    // ============================
+
+    const user0 = "smartpaddy.p@gmail.com";
+    const pass = "Suphanat10";
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: user0,
+        pass: pass
+      },
+    });
+
+    console.log("transporter", transporter);
+
+    const mailOptions = {
+      from: `"Smart Paddy" <${"smartpaddy2025@gmail.com"}>`,
+      to: email,
+      subject: "รหัส OTP สำหรับรีเซ็ตรหัสผ่าน",
+      html: `
+        <h2>รหัส OTP ของคุณ</h2>
+        <p style="font-size:20px; font-weight:bold;">${otpCode}</p>
+        <p>รหัสมีอายุ ${OTP_EXPIRE_MIN} นาที</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return res.status(200).json({ message: "ส่งรหัส OTP สำเร็จ" });
+
+  } catch (error) {
+    console.error("Request OTP error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

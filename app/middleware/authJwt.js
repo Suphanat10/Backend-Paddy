@@ -76,3 +76,34 @@ export const isAgriculturist = async (req, res, next) => {
     });
   }
 };
+
+
+export const isAdmin = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;   
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+    const user = await prisma.Account.findUnique({
+      where: { user_ID: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found!" });
+    }
+
+    if (user.position !== "Admin") {
+      return res.status(403).json({ message: "Require Admin Role!" });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Role check failed:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      details: error.message,
+    });
+  }
+};

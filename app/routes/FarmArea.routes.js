@@ -1,4 +1,5 @@
-import {  getFarmAreas , createFarmArea , updateFarmArea , deleteFarmArea , createSubArea , deleteSubArea , updateSubArea , registerDeviceToFarmArea
+import {  getFarmAreas , createFarmArea , updateFarmArea , deleteFarmArea , createSubArea , deleteSubArea , updateSubArea , registerDeviceToFarmArea , transferDevice
+   , deleteDevice
  } from "../controllers/FarmArea.Controller.js";
 import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
@@ -61,6 +62,19 @@ export default function (app) {
     "/api/register-device",
     requireAuthMiddleware,
     registerDeviceToFarmArea
+  );
+
+
+  app.post(
+    "/api/transfer-device",
+    requireAuthMiddleware,
+    transferDevice
+  );
+
+  app.post(
+    "/api/delete-device",
+    requireAuthMiddleware,
+    deleteDevice
   );
 
  

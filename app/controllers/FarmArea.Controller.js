@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-
+import { sendSettingsToDevice } from "../websocket/socketHandler.js";
 
 // -----------------------------------------------------การจัดการพื้นที่ฟาร์ม-------------------------------------------------------------------
 
@@ -313,6 +313,7 @@ export const updateSubArea = async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
    }
 };
+
 export const registerDeviceToFarmArea = async (req, res) => {
   try {
     const user_id = req.user?.id;
@@ -338,7 +339,7 @@ export const registerDeviceToFarmArea = async (req, res) => {
 
     // อุปกรณ์ถูกใช้หรือยัง
     const deviceAlreadyUsed = await prisma.device_registrations.findFirst({
-      where: { device_ID: device.device_ID }
+      where: { device_ID: parseInt(device.device_ID) }
     });
 
     if (deviceAlreadyUsed)
@@ -379,7 +380,8 @@ export const registerDeviceToFarmArea = async (req, res) => {
       prisma.user_Settings.create({
         data: {
           device_registrations_ID: newRegistration.device_registrations_ID,
-              data_send_interval_days: "1",  // ⭐ ค่า default เช่น ส่งข้อมูลทุก 1 วัน
+              data_send_interval_days:1,
+              growth_analysis_period:72,
 
           Water_level_min: 10,
           Water_level_mxm: 15
@@ -402,6 +404,196 @@ export const registerDeviceToFarmArea = async (req, res) => {
 
   } catch (error) {
     console.error("Error registering device to farm area:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const transferDevice = async (req, res) => {
+  try {
+    const user_id = req.user?.id;
+    const { device_id, area_id, farm_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+    if (!device_id || !area_id || !farm_id) {
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    }
+
+    // 🔹 หา registration เดิม
+    const reg = await prisma.device_registrations.findFirst({
+      where: {
+        device_ID: device_id,
+        user_ID: user_id,
+      },
+    });
+
+    if (!reg) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
+    // 🔹 ตรวจสอบพื้นที่
+    const area = await prisma.area.findFirst({
+      where: {
+        area_id,
+        farm_id,
+      },
+    });
+
+    if (!area) {
+      return res.status(404).json({ message: "ไม่พบพื้นที่นี้ในระบบ" });
+    }
+
+    // 🔹 ดึงค่า default system settings
+    const settings_default = await prisma.system_settings.findFirst({
+      where: { system_settings_ID: 1 },
+    });
+
+    if (!settings_default) {
+      return res.status(404).json({ message: "ไม่พบตั้งค่าระบบ" });
+    }
+
+    // =============================
+    // 🔹 ใช้ Transaction
+    // =============================
+    await prisma.$transaction(async (tx) => {
+
+      // 1) ลบข้อมูลเก่า
+      await tx.permanent_Data.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID },
+      });
+
+      await tx.growth_Analysis.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID },
+      });
+
+      await tx.logs_Alert.deleteMany({
+        where: { device_ID: reg.device_registrations_ID },
+      });
+
+      // 2) อัปเดต registration
+      await tx.device_registrations.update({
+        where: {
+          device_registrations_ID: reg.device_registrations_ID,
+        },
+        data: {
+          area_id,
+          status: "active",
+          registered_at: new Date(),
+        },
+      });
+
+      // 3) reset user settings
+      const settings = await tx.user_Settings.findFirst({
+        where: { device_registrations_ID: reg.device_registrations_ID },
+      });
+
+      const settingsData = {
+        data_send_interval_days: settings_default.data_send_interval_days,
+        growth_analysis_period: settings_default.growth_analysis_period,
+        Water_level_min: settings_default.water_level_min,
+        Water_level_mxm: settings_default.water_level_max,
+      };
+
+      if (settings) {
+        await tx.user_Settings.update({
+          where: { user_settings_ID: settings.user_settings_ID },
+          data: settingsData,
+        });
+      } else {
+        await tx.user_Settings.create({
+          data: {
+            device_registrations_ID: reg.device_registrations_ID,
+            ...settingsData,
+          },
+        });
+      }
+    });
+
+    return res.status(200).json({
+      message: "ย้ายอุปกรณ์สำเร็จ",
+      data: {
+        device_id,
+        new_area_id: area_id,
+        new_farm_id: farm_id,
+        reg_id: reg.device_registrations_ID,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error transferDevice:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const deleteDevice = async (req, res) => {
+  try {
+    const { device_code } = req.body;
+
+    if (!device_code) {
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    }
+
+    // 1) หา device
+    const device = await prisma.device.findFirst({
+      where: { device_code }
+    });
+
+    if (!device) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
+    // 2) หา device_registrations
+    const registrations = await prisma.device_registrations.findMany({
+      where: { device_ID: device.device_ID }
+    });
+
+    // 3) ลบข้อมูลลูกทั้งหมด
+    for (const reg of registrations) {
+      await prisma.permanent_Data.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID }
+      });
+
+      await prisma.growth_Analysis.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID }
+      });
+
+      await prisma.logs_Alert.deleteMany({
+        where: { device_ID: reg.device_registrations_ID }
+      });
+
+      await prisma.user_Settings.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID }
+      });
+    }
+
+    // 4) ลบ device_registrations (ไม่ลบ Device)
+    await prisma.device_registrations.deleteMany({
+      where: { device_ID: device.device_ID }
+    });
+
+    // 5) สั่ง ESP32 หยุดการส่งข้อมูล
+    sendSettingsToDevice(device.device_code, {
+      action: "STOP_SEND",
+      reason: "DEVICE_DELETED"
+    });
+
+    // 6) Soft delete → update status
+   //  await prisma.device.update({
+   //    where: { device_ID: device.device_ID },
+   //    data: { status: "deleted" }
+   //  });
+
+    // 7) Response
+    return res.status(200).json({
+      message: "ลบข้อมูลที่เกี่ยวข้องกับอุปกรณ์สำเร็จ และหยุดการทำงานของอุปกรณ์แล้ว"
+    });
+
+  } catch (error) {
+    console.error("Error deleteDevice:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

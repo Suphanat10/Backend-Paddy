@@ -22,7 +22,7 @@ export default function (app) {
   );
 
   app.get("/api/profile", requireAuthMiddleware, getProfile);
-  app.post("/api/profile/update", requireAuthMiddleware, updateProfile);
+  app.post("/api/profile/update", updateProfile);
 
   app.get("/api/auth/me", requireAuthMiddleware, getdataPofile_notification);
 }

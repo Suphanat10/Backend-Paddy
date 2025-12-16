@@ -1,4 +1,4 @@
-import { requireAuthMiddleware, isAgriculturist } from "./authJwt.js";
+import { requireAuthMiddleware, isAgriculturist , isAdmin } from "./authJwt.js";
 
-export { requireAuthMiddleware, isAgriculturist };
+export { requireAuthMiddleware, isAgriculturist , isAdmin };
 

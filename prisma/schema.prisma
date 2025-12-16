@@ -36,10 +36,11 @@ model Area {
 }
 
 model Device {
-  device_ID   Int       @id @default(autoincrement())
-  device_code String?   @db.VarChar(100)
-  created_at  DateTime? @db.DateTime(0)
-  status      String?   @db.VarChar(20)
+  device_ID            Int                    @id @default(autoincrement())
+  device_code          String?                @db.VarChar(100)
+  created_at           DateTime?              @db.DateTime(0)
+  status               String?                @db.VarChar(20)
+  device_registrations device_registrations[]
 }
 
 model Farm {
@@ -48,9 +49,9 @@ model Farm {
   area             Float?  @db.Float
   farm_name        String? @db.VarChar(50)
   gender           String? @db.VarChar(50)
-  rice_variety     String? @db.VarChar(250)
-  planting_method  String? @db.VarChar(250)
-  soil_type        String? @db.VarChar(250)
+  rice_variety     String? @db.VarChar(10)
+  planting_method  String? @db.VarChar(50)
+  soil_type        String? @db.VarChar(50)
   water_management String? @db.VarChar(100)
   address          String? @db.Text
   Area             Area[]
@@ -125,11 +126,11 @@ model Sensor_Type {
 
 model User_Settings {
   user_settings_ID        Int                  @id @default(autoincrement())
-  data_send_interval_days String               @db.VarChar(50)
+  data_send_interval_days Float                @db.Float
+  device_registrations_ID Int
   Water_level_min         Float?               @db.Float
-  updated_at              Boolean?             @default(true)
-  device_registrations_ID Int                   
-  Water_level_mxm         Float                @db.Float
+  Water_level_mxm         Float                @default(0) @db.Float
+  growth_analysis_period  Float                @db.Float
   device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, map: "User_Settings_ibfk_1")
 
   @@index([device_registrations_ID], map: "device_registrations_ID")
@@ -148,7 +149,19 @@ model device_registrations {
   User_Settings           User_Settings[]
   Account                 Account           @relation(fields: [user_ID], references: [user_ID], onDelete: Cascade, map: "device_registrations_ibfk_1")
   Area                    Area              @relation(fields: [area_id], references: [area_id], onDelete: Cascade, map: "device_registrations_ibfk_2")
+  Device                  Device            @relation(fields: [device_ID], references: [device_ID], onDelete: Cascade, map: "device_registrations_ibfk_3")
 
   @@index([area_id], map: "area_id")
   @@index([user_ID], map: "user_ID")
+  @@index([device_ID], map: "device_registrations_ibfk_3")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model system_settings {
+  system_settings_ID      Int      @id @default(autoincrement())
+  data_send_interval_days Float    @default(1) @db.Float
+  growth_analysis_period  Float    @default(7) @db.Float
+  water_level_min         Float    @default(5) @db.Float
+  water_level_max         Float    @default(30) @db.Float
+  updated_at              DateTime @default(now()) @db.DateTime(0)
 }
