@@ -1,5 +1,5 @@
 // import { requireAuthMiddleware } from "../middleware/authJwt.js";
-import { get_user ,  add_user  , delete_user , updateProfile , createFarmArea , updateFarmArea , createSubArea , updateSubArea , deleteSubArea
+import { get_user ,  add_user  , delete_user , updateProfile , createFarmArea , updateFarmArea , createSubArea , updateSubArea , deleteSubArea , getFarmAreas , transferDevice , getData_Growth_Analysis , getDashboardOverview
     , getDevices  , createDevice , deleteDevice , updateDevice , getDeviceRegistrations , GetData_devicebyID , GetdataLog  , GetdataLog_Logs_Alert   , update_system_settings , get_system_settings} from "../controllers/admin.controller.js";
 
 export default function (app) {
@@ -115,6 +115,26 @@ export default function (app) {
   app.get(
     "/api/admin/get_system_settings",
     get_system_settings
+  );
+
+  app.post(
+    "/api/admin/get_farm_areas",
+    getFarmAreas
+  );
+
+  app.post(
+    "/api/admin/transfer_device",
+    transferDevice
+  );
+
+  app.get(
+    "/api/admin/get_data_growth_analysis",
+    getData_Growth_Analysis
+  );
+
+  app.get(
+    "/api/admin/get_dashboard_overview",
+    getDashboardOverview
   );
 
 

@@ -907,3 +907,333 @@ export const update_system_settings = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+export const getFarmAreas = async (req, res) => {
+   try {
+      const user_id = req.body.user_id;
+
+      if(!user_id) {
+         return res.status(400).json({ message: "User ID missing in token" });
+      }
+
+  const farmAreas = await prisma.farm.findMany({
+  where: { user_ID: parseInt(user_id) },
+  include: {
+    Area: {
+      include: {
+        device_registrations: true   
+      }
+    }
+  }
+});
+
+if (!farmAreas) {
+   return res.status(404).json({ message: "ไม่พบข้อมูล" });
+}
+
+return res.status(200).json(farmAreas);
+
+} catch (error) {
+   console.error("Error getFarmAreas:", error);
+   return res.status(500).json({ message: "Internal server error" });
+}
+};
+
+
+export const transferDevice = async (req, res) => {
+  try {
+    const user_id = req.body.user_id;
+    const { device_registrations_ID, area_id, farm_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+    if (!device_registrations_ID || !area_id || !farm_id) {
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    }
+
+    // 🔹 หา registration เดิม
+    const reg = await prisma.device_registrations.findFirst({
+      where: {
+        device_registrations_ID: parseInt(device_registrations_ID),
+        user_ID: parseInt(user_id),
+      },
+    });
+
+    if (!reg) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
+    // 🔹 ตรวจสอบพื้นที่
+    const area = await prisma.area.findFirst({
+      where: {
+        area_id,
+        farm_id,
+      },
+    });
+
+    if (!area) {
+      return res.status(404).json({ message: "ไม่พบพื้นที่นี้ในระบบ" });
+    }
+
+    // 🔹 ดึงค่า default system settings
+    const settings_default = await prisma.system_settings.findFirst({
+      where: { system_settings_ID: 1 },
+    });
+
+    if (!settings_default) {
+      return res.status(404).json({ message: "ไม่พบตั้งค่าระบบ" });
+    }
+
+    // =============================
+    // 🔹 ใช้ Transaction
+    // =============================
+    await prisma.$transaction(async (tx) => {
+
+      // 1) ลบข้อมูลเก่า
+      await tx.permanent_Data.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID },
+      });
+
+      await tx.growth_Analysis.deleteMany({
+        where: { device_registrations_ID: reg.device_registrations_ID },
+      });
+
+      await tx.logs_Alert.deleteMany({
+        where: { device_ID: reg.device_registrations_ID },
+      });
+
+      // 2) อัปเดต registration
+      await tx.device_registrations.update({
+        where: {
+          device_registrations_ID: reg.device_registrations_ID,
+        },
+        data: {
+          area_id,
+          status: "active",
+          registered_at: new Date(),
+        },
+      });
+
+      // 3) reset user settings
+      const settings = await tx.user_Settings.findFirst({
+        where: { device_registrations_ID: reg.device_registrations_ID },
+      });
+
+      const settingsData = {
+        data_send_interval_days: settings_default.data_send_interval_days,
+        growth_analysis_period: settings_default.growth_analysis_period,
+        Water_level_min: settings_default.water_level_min,
+        Water_level_mxm: settings_default.water_level_max,
+      };
+
+      if (settings) {
+        await tx.user_Settings.update({
+          where: { user_settings_ID: settings.user_settings_ID },
+          data: settingsData,
+        });
+      } else {
+        await tx.user_Settings.create({
+          data: {
+            device_registrations_ID: reg.device_registrations_ID,
+            ...settingsData,
+          },
+        });
+      }
+    });
+
+    return res.status(200).json({
+      message: "ย้ายอุปกรณ์สำเร็จ",
+      data: {
+        new_area_id: area_id,
+        new_farm_id: farm_id,
+        reg_id: reg.device_registrations_ID,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error transferDevice:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const getData_Growth_Analysis = async (req, res) => {
+  try {
+    const result = await prisma.account.findMany({
+      include: {
+        Farm: {
+          include: {
+            Area: {
+              include: {
+                device_registrations: {
+                  include: {
+                    Device: true,
+                    Growth_Analysis: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูล" });
+    }
+    const data = result.map((user) => ({
+      user_id: user.user_ID,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+
+      farms: user.Farm.map((farm) => ({
+        farm_id: farm.farm_id,
+        farm_name: farm.farm_name,
+
+        areas: farm.Area.map((area) => ({
+          area_id: area.area_id,
+          area_name: area.area_name,
+
+          devices: area.device_registrations.map((reg) => ({
+            device_registration_id: reg.device_registrations_ID,
+            status: reg.status,
+
+            device: {
+              device_id: reg.Device.device_ID,
+              device_code: reg.Device.device_code,
+              device_status: reg.Device.status,
+            },
+
+            growth_analysis: reg.Growth_Analysis.map((ga) => ({
+              analysis_id: ga.analysis_id,
+              growth_stage: ga.growth_stage,
+              image_url: ga.image_url,
+              created_at: ga.created_at,
+            })),
+          })),
+        })),
+      })),
+    }));
+
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("Error getData_Growth_Analysis:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const getDashboardOverview = async (req, res) => {
+  try {
+
+    /* =========================
+      1. SUMMARY COUNTS
+    ========================= */
+
+    const [
+      totalDevices,
+      registeredDevices,
+      agricultureUsers,
+      totalFarms,
+      totalAreas,
+      farmsAreaSum,
+    ] = await Promise.all([
+      prisma.Device.count(),
+
+      prisma.device_registrations.count(),
+
+      prisma.Account.count({
+        where: {
+          position: "Agriculture",
+        },
+      }),
+
+      prisma.Farm.count(),
+
+      prisma.Area.count(),
+
+      prisma.Farm.aggregate({
+        _sum: {
+          area: true,
+        },
+      }),
+    ]);
+
+    /* =========================
+      2. DEVICE CODE (WebSocket)
+    ========================= */
+
+    const deviceCodes = await prisma.Device.findMany({
+      select: {
+        device_ID: true,
+        device_code: true,
+        status: true,
+      },
+    });
+
+    /* =========================
+      3. BAR CHART: Devices per Farm
+    ========================= */
+
+    const devicesPerFarm = await prisma.Farm.findMany({
+      select: {
+        farm_id: true,
+        farm_name: true,
+        Area: {
+          select: {
+            device_registrations: {
+              select: {
+                device_registrations_ID: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const barChartDevicesPerFarm = devicesPerFarm.map((farm) => {
+      const deviceCount = farm.Area.reduce(
+        (sum, area) => sum + area.device_registrations.length,
+        0
+      );
+
+      return {
+        farm_id: farm.farm_id,
+        farm_name: farm.farm_name,
+        device_count: deviceCount,
+      };
+    });
+
+    
+
+
+    /* =========================
+      RESPONSE
+    ========================= */
+
+    return res.status(200).json({
+      summary: {
+        total_devices: totalDevices,
+        registered_devices: registeredDevices,
+        agriculture_users: agricultureUsers,
+        total_farms: totalFarms,
+        total_areas: totalAreas,
+        total_area_rai: farmsAreaSum._sum.area || 0,
+      },
+
+    
+
+      devices: deviceCodes,
+    });
+
+  } catch (error) {
+    console.error("Dashboard Overview Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};

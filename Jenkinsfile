@@ -16,9 +16,9 @@ pipeline {
             description: 'Remove volumes (clears database)'
         )
         string(
-            name: 'API_HOST',
-            defaultValue: 'http://54.206.19.89:3001',
-            description: 'API host URL for frontend to connect to.'
+            name: 'PUBLIC_IP',
+            defaultValue: '54.206.19.89',
+            description: 'Public IP or domain of the server'
         )
     }
 
@@ -28,9 +28,7 @@ pipeline {
                 script {
                     echo "Checking out code..."
                     checkout scm
-                    // safe: compute commit here
                     env.GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                    echo "Deploying to production environment"
                     echo "Build: ${BUILD_TAG}, Commit: ${env.GIT_COMMIT_SHORT}"
                 }
             }
@@ -48,41 +46,34 @@ pipeline {
         stage('Prepare Environment') {
             steps {
                 script {
-                    echo "Preparing environment configuration..."
+                    echo "Preparing backend environment (.env)..."
 
-                    // Load credentials from Jenkins (masked)
                     withCredentials([
                         string(credentialsId: 'MYSQL_ROOT_PASSWORD', variable: 'MYSQL_ROOT_PASS'),
                         string(credentialsId: 'MYSQL_PASSWORD',      variable: 'MYSQL_PASS')
                     ]) {
-                        // Safely write .env without using `sh` interpolation
                         writeFile file: '.env', text: """\
 MYSQL_ROOT_PASSWORD=${env.MYSQL_ROOT_PASS}
-MYSQL_DATABASE=attractions_db
-MYSQL_USER=attractions_user
+MYSQL_DATABASE=tutorial
+MYSQL_USER=root
 MYSQL_PASSWORD=${env.MYSQL_PASS}
 MYSQL_PORT=3306
-PHPMYADMIN_PORT=8888
-API_PORT=3001
-DB_PORT=3306
-FRONTEND_PORT=3000
 NODE_ENV=production
-API_HOST=${params.API_HOST}
+API_PORT=8000
+HOST=0.0.0.0
 """.stripIndent()
 
-                        // Avoid printing secrets
-                        echo ".env file created successfully"
+                        echo ".env file created"
                     }
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Backend') {
             steps {
                 script {
-                    echo "Deploying to production using Docker Compose..."
+                    echo "Deploying backend services using Docker Compose..."
 
-                    // Stop existing containers
                     def downCommand = 'docker compose down'
                     if (params.CLEAN_VOLUMES) {
                         echo "WARNING: Removing volumes (database will be cleared)"
@@ -90,13 +81,10 @@ API_HOST=${params.API_HOST}
                     }
                     sh downCommand
 
-                    // Build and start services
                     sh """
                         docker compose build --no-cache
                         docker compose up -d
                     """
-
-                    echo "Deployment completed"
                 }
             }
         }
@@ -107,19 +95,12 @@ API_HOST=${params.API_HOST}
                     echo "Waiting for services to start..."
                     sh 'sleep 15'
 
-                    echo "Performing health check..."
-
                     sh """
-                        # Check if containers are running
                         docker compose ps
 
-                        # Wait for API to be ready (max 60 seconds)
-                        timeout 60 bash -c 'until curl -f http://localhost:3001/health; do sleep 2; done' || exit 1
+                        timeout 60 bash -c 'until curl -f http://localhost:8001; do sleep 2; done' || exit 1
 
-                        # Check attractions endpoint
-                        curl -f http://localhost:3001/attractions || exit 1
-
-                        echo "Health check passed!"
+                        echo "Health check passed"
                     """
                 }
             }
@@ -128,8 +109,6 @@ API_HOST=${params.API_HOST}
         stage('Verify Deployment') {
             steps {
                 script {
-                    echo "Verifying all services..."
-
                     sh """
                         echo "=== Container Status ==="
                         docker compose ps
@@ -139,10 +118,9 @@ API_HOST=${params.API_HOST}
                         docker compose logs --tail=20
 
                         echo ""
-                        echo "=== Deployed Services ==="
-                        echo "Frontend: http://localhost:3000"
-                        echo "API: http://localhost:3001"
-                        echo "phpMyAdmin: http://localhost:8888"
+                        echo "=== Public Access ==="
+                        echo "API: http://${params.PUBLIC_IP}:8001"
+                        echo "phpMyAdmin: http://${params.PUBLIC_IP}:8081"
                     """
                 }
             }
@@ -151,28 +129,19 @@ API_HOST=${params.API_HOST}
 
     post {
         success {
-            echo "✅ Deployment completed successfully!"
+            echo "✅ Backend deployment successful"
             echo "Build: ${BUILD_TAG}"
             echo "Commit: ${env.GIT_COMMIT_SHORT}"
-            echo ""
-            echo "Access your application:"
-            echo "  - Frontend: http://localhost:3000"
-            echo "  - API: http://localhost:3001"
-            echo "  - phpMyAdmin: http://localhost:8888"
+            echo "API: http://${params.PUBLIC_IP}:8001"
+            echo "phpMyAdmin: http://${params.PUBLIC_IP}:8081"
         }
         failure {
-            echo "❌ Deployment failed!"
-            script {
-                echo "Printing container logs for debugging..."
-                sh 'docker compose logs --tail=50 || true'
-            }
+            echo "❌ Deployment failed"
+            sh 'docker compose logs --tail=50 || true'
         }
         always {
-            echo "Cleaning up old Docker resources..."
-            sh """
-                docker image prune -f
-                docker container prune -f
-            """
+            echo "Cleaning unused Docker resources..."
+            sh 'docker image prune -f'
         }
     }
 }

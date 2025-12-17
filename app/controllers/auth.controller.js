@@ -27,21 +27,22 @@ export const login = async (req, res) => {
     });
 
     res.status(200)
-      .cookie("accessToken", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 86400 * 1000,
-      })
-      .send({
-        message: "เข้าสู่ระบบสำเร็จ",
-        user: {
-          id: user.user_id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          position: user.position,
-          Token: token
-        },
-      });
+  .cookie("accessToken", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax", // ⭐ แนะนำ
+    path: "/",       // ⭐ แนะนำ
+    maxAge: 86400 * 1000,
+  })
+  .json({
+    message: "เข้าสู่ระบบสำเร็จ",
+    user: {
+      id: user.user_ID,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      position: user.position,
+    },
+  });
 
     await prisma.logs.create({
       data: {

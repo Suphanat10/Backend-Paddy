@@ -581,13 +581,6 @@ export const deleteDevice = async (req, res) => {
       reason: "DEVICE_DELETED"
     });
 
-    // 6) Soft delete → update status
-   //  await prisma.device.update({
-   //    where: { device_ID: device.device_ID },
-   //    data: { status: "deleted" }
-   //  });
-
-    // 7) Response
     return res.status(200).json({
       message: "ลบข้อมูลที่เกี่ยวข้องกับอุปกรณ์สำเร็จ และหยุดการทำงานของอุปกรณ์แล้ว"
     });

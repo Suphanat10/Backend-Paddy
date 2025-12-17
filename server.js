@@ -8,6 +8,9 @@ import FarmAreaRoutes from "./app/routes/FarmArea.routes.js";
 import settingRoutes from "./app/routes/setting.routes.js";
 import dataRoutes from "./app/routes/data.routes.js";
 import adminRoutes from "./app/routes/admin.routes.js";
+import cookieParser from "cookie-parser";
+
+
 
 import { initWebSocket } from "./app/websocket/socketHandler.js";
 
@@ -25,6 +28,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 authRoutes(app);
 profileRoutes(app);
