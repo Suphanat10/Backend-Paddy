@@ -1,5 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs"; 
+import { sendSettingsToDevice } from "../websocket/socketHandler.js";
+
 
 
  export const update_device = async (req, res) => {
@@ -954,6 +956,7 @@ export const transferDevice = async (req, res) => {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
+  
     // 🔹 หา registration เดิม
     const reg = await prisma.device_registrations.findFirst({
       where: {
@@ -963,6 +966,16 @@ export const transferDevice = async (req, res) => {
     });
 
     if (!reg) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
+    const device = await prisma.device.findFirst({
+      where: {
+         device_ID: reg.device_ID,
+      },
+    });
+
+    if (!device) {
       return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
     }
 
@@ -1002,7 +1015,7 @@ export const transferDevice = async (req, res) => {
       });
 
       await tx.logs_Alert.deleteMany({
-        where: { device_ID: reg.device_registrations_ID },
+        where: { device_registrations_ID: reg.device_registrations_ID },
       });
 
       // 2) อัปเดต registration
@@ -1043,6 +1056,22 @@ export const transferDevice = async (req, res) => {
         });
       }
     });
+
+
+
+const stopPayload = {
+         message : "Stop the connection.",
+        connectDevice: false,
+        type: "STOP_CONNECTION",
+      };
+
+      const id_code = device.device_code;
+
+      const sent = sendSettingsToDevice(id_code, stopPayload);
+      
+      if(sent) {
+        console.log(`Sent STOP signal to ${id_code}`);
+      }
 
     return res.status(200).json({
       message: "ย้ายอุปกรณ์สำเร็จ",

@@ -82,15 +82,7 @@ model Logs {
   @@index([user_ID], map: "user_ID")
 }
 
-model Logs_Alert {
-  logs_alert_ID        Int                  @id @default(autoincrement())
-  device_ID            Int
-  alert_message        String               @db.Text
-  created_at           DateTime?            @default(now()) @db.DateTime(0)
-  device_registrations device_registrations @relation(fields: [device_ID], references: [device_registrations_ID], onDelete: Cascade, map: "Logs_Alert_ibfk_1")
 
-  @@index([device_ID], map: "device_ID")
-}
 
 model OTP {
   otp_id      Int      @id @default(autoincrement())

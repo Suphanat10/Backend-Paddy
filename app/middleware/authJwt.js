@@ -64,6 +64,34 @@ export const isAgriculturist = async (req, res, next) => {
   }
 };
 
+export const iSESp32 = async (req, res, next) => {
+  try {
+    const authHeader = req.headers["authorization"];
+
+    if (!authHeader) {
+      return res.status(401).json({
+        message: "Missing authorization header",
+      });
+    }
+
+    const token = authHeader.split(" ")[1]; 
+    if (!token) {
+      return res.status(401).json({
+        message: "Invalid token format",
+      });
+    }
+    const decoded = jwt.verify(token, config.secret);
+    req.device = decoded;
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      message: "Token invalid or expired",
+      details: error.message,
+    });
+  }
+};
+
 
 export const isAdmin = async (req, res, next) => {
   try {

@@ -8,6 +8,7 @@ import FarmAreaRoutes from "./app/routes/FarmArea.routes.js";
 import settingRoutes from "./app/routes/setting.routes.js";
 import dataRoutes from "./app/routes/data.routes.js";
 import adminRoutes from "./app/routes/admin.routes.js";
+import esp32Routes from "./app/routes/esp32.routes.js";
 import cookieParser from "cookie-parser";
 
 
@@ -36,6 +37,7 @@ FarmAreaRoutes(app);
 settingRoutes(app);
 dataRoutes(app);
 adminRoutes(app);
+esp32Routes(app);
 
 // ---------- สร้าง HTTP Server แค่ครั้งเดียว ----------
 const server = http.createServer(app);

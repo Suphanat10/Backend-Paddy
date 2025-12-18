@@ -1,6 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
 import { sendSettingsToDevice } from "../websocket/socketHandler.js";
-
 // -----------------------------------------------------การจัดการพื้นที่ฟาร์ม-------------------------------------------------------------------
 
 
@@ -422,6 +421,14 @@ export const transferDevice = async (req, res) => {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
+    const device = await prisma.device.findFirst({
+      where: { device_ID: device_id },
+    });
+
+    if (!device) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
     // 🔹 หา registration เดิม
     const reg = await prisma.device_registrations.findFirst({
       where: {
@@ -470,7 +477,7 @@ export const transferDevice = async (req, res) => {
       });
 
       await tx.logs_Alert.deleteMany({
-        where: { device_ID: reg.device_registrations_ID },
+        where: { device_registrations_ID: reg.device_registrations_ID },
       });
 
       // 2) อัปเดต registration
@@ -511,6 +518,21 @@ export const transferDevice = async (req, res) => {
         });
       }
     });
+
+
+      
+      const stopPayload = {
+         message : "Stop the connection.",
+        connectDevice: false,
+        type: "STOP_CONNECTION",
+      };
+
+      const id_code = device.device_code;
+
+      const sent = sendSettingsToDevice(id_code, stopPayload);
+      
+      if(sent) console.log(`Sent STOP signal to ${id_code}`);
+    
 
     return res.status(200).json({
       message: "ย้ายอุปกรณ์สำเร็จ",
@@ -562,7 +584,7 @@ export const deleteDevice = async (req, res) => {
       });
 
       await prisma.logs_Alert.deleteMany({
-        where: { device_ID: reg.device_registrations_ID }
+        where: { device_registrations_ID: reg.device_registrations_ID }
       });
 
       await prisma.user_Settings.deleteMany({
@@ -576,10 +598,19 @@ export const deleteDevice = async (req, res) => {
     });
 
     // 5) สั่ง ESP32 หยุดการส่งข้อมูล
-    sendSettingsToDevice(device.device_code, {
-      action: "STOP_SEND",
-      reason: "DEVICE_DELETED"
-    });
+    const stopPayload = {
+      message : "Stop the connection.",
+      connectDevice: false,
+      type: "STOP_CONNECTION",
+    };
+
+    const id_code = device.device_code;
+
+    const sent = sendSettingsToDevice(id_code, stopPayload);
+    
+    if(sent) {
+      console.log(`Sent STOP signal to ${id_code}`);
+    }
 
     return res.status(200).json({
       message: "ลบข้อมูลที่เกี่ยวข้องกับอุปกรณ์สำเร็จ และหยุดการทำงานของอุปกรณ์แล้ว"
