@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    environment: ENV   # 🔥 GitHub Environment
 
     steps:
       - name: Checkout code
@@ -24,7 +25,7 @@ jobs:
 
           TARGET_DIR="/var/www/html/smart-paddy/backend"
 
-          echo "🚀 Syncing files to $TARGET_DIR..."
+          echo "🚀 Syncing files..."
           mkdir -p "$TARGET_DIR"
 
           rsync -avz --delete \
@@ -34,18 +35,22 @@ jobs:
 
           cd "$TARGET_DIR"
 
-          echo "🔐 Creating .env file..."
+          echo "🔐 Creating .env"
           printf "DATABASE_URL=%s\nJWT_SECRET=%s\nPORT=%s\n" \
             "$DATABASE_URL" "$JWT_SECRET" "$PORT" > .env
 
-          echo "🛑 Removing old containers..."
-          docker compose down -v || true
+          echo "🛑 Stop old containers"
+          docker compose down || true
 
-          echo "🛢️ Rebuilding Containers..."
+          echo "🛢️ Build & start containers"
           docker compose up -d --build --force-recreate
 
-          echo "🧹 Cleaning unused images..."
+          echo "🧬 Run Prisma migrate (IMPORTANT)"
+          docker compose exec -T node-server npx prisma migrate deploy
+
+          echo "🧹 Cleanup images"
           docker image prune -f
 
           echo "✅ Backend Deployment Successful!"
+
 
