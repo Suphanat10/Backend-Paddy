@@ -1,0 +1,47 @@
+name: Deploy Backend Only
+
+on:
+  push:
+    branches: [ "main" ]
+    # (ทางเลือก) ทำงานเฉพาะเมื่อมีการแก้ไขไฟล์ในโฟลเดอร์ backend
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
+
+jobs:
+  deploy-backend:
+    runs-on: self-hosted  # ใช้เครื่อง Server ของคุณเอง
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync Backend Files
+        run: |
+          # กำหนดปลายทางไปที่โฟลเดอร์ backend
+          TARGET_DIR="/var/www/html/smart-paddy/backend"
+          
+          echo "🚀 Syncing backend files..."
+          
+          # สร้างโฟลเดอร์รองรับ
+          mkdir -p $TARGET_DIR
+
+          # ส่งไฟล์จากโฟลเดอร์ 'backend' ใน GitHub ไปที่ Server
+          # --delete คือลบไฟล์ใน Server ที่ไม่มีใน GitHub ทิ้ง (เพื่อให้ตรงกันเป๊ะ)
+          rsync -avz --delete ./backend/ $TARGET_DIR/
+
+      - name: Start Services
+        run: |
+          TARGET_DIR="/var/www/html/smart-paddy/backend"
+          cd $TARGET_DIR
+          
+          echo "🛢️ Rebuilding Backend Containers..."
+          
+          # สั่ง Docker Compose ทำงาน
+          docker compose down
+          docker compose up -d --build
+          
+          # ล้างไฟล์ขยะ
+          docker image prune -f
+          
+          echo "✅ Backend Deployment Successful!"
