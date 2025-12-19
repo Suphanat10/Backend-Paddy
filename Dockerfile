@@ -9,12 +9,14 @@ COPY package*.json ./
 # ลง dependency
 RUN npm install
 
-# ❌ ลบบรรทัดนี้ทิ้ง: COPY server.js ./
-# ✅ ใส่บรรทัดนี้แทน: copy ทุกไฟล์ (รวมถึง folder app/) เข้าไป
+# copy ทุกไฟล์ (รวม prisma folder, server.js, lib/ ฯลฯ)
 COPY . .
+
+# generate Prisma client
+RUN npx prisma generate
 
 # ปล่อย port
 EXPOSE 8000
 
-# รัน
+# รัน server
 CMD ["node", "server.js"]
