@@ -17,6 +17,8 @@ jobs:
         shell: bash
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PORT: 8000
         run: |
           set -e
 
@@ -33,17 +35,17 @@ jobs:
           cd "$TARGET_DIR"
 
           echo "🔐 Creating .env file..."
-          cat <<EOF > .env
-          DATABASE_URL=$DATABASE_URL
-          JWT_SECRET=$JWT_SECRET
-          PORT=$PORT
-          EOF
+          printf "DATABASE_URL=%s\nJWT_SECRET=%s\nPORT=%s\n" \
+            "$DATABASE_URL" "$JWT_SECRET" "$PORT" > .env
+
+          echo "🛑 Removing old containers..."
+          docker compose down -v || true
 
           echo "🛢️ Rebuilding Containers..."
-          docker compose down
-          docker compose up -d --build
+          docker compose up -d --build --force-recreate
 
           echo "🧹 Cleaning unused images..."
           docker image prune -f
 
           echo "✅ Backend Deployment Successful!"
+
