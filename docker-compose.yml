@@ -11,9 +11,7 @@ services:
     image: mysql:8.0
     container_name: db
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: tutorial
-      MYSQL_ROOT_HOST: "%"
+      DATABASE_URL: mysql://paddy_admin:Paddy%402025_Secure%21@db:3306/Project-01
     ports:
       - "3307:3306"  
     volumes:
