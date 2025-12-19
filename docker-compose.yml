@@ -2,6 +2,8 @@ services:
   node-server:
     build: .
     container_name: node-server
+    env_file:
+      - .env
     ports:
       - "8001:8000"
 
