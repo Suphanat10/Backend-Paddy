@@ -82,7 +82,15 @@ model Logs {
   @@index([user_ID], map: "user_ID")
 }
 
+model Logs_Alert {
+  logs_alert_ID           Int                  @id @default(autoincrement())
+  device_registrations_ID Int
+  alert_message           String               @db.Text
+  created_at              DateTime?            @default(now()) @db.DateTime(0)
+  device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, onUpdate: NoAction, map: "Logs_Alert_ibfk_1")
 
+  @@index([device_registrations_ID], map: "device_registrations_ID")
+}
 
 model OTP {
   otp_id      Int      @id @default(autoincrement())
@@ -144,8 +152,8 @@ model device_registrations {
   Device                  Device            @relation(fields: [device_ID], references: [device_ID], onDelete: Cascade, map: "device_registrations_ibfk_3")
 
   @@index([area_id], map: "area_id")
-  @@index([user_ID], map: "user_ID")
   @@index([device_ID], map: "device_registrations_ibfk_3")
+  @@index([user_ID], map: "user_ID")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
