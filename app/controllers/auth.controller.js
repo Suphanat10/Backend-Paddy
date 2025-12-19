@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
+import axios from "axios";
 import config from "../config/auth.config.js";
 
 export const login = async (req, res) => {
@@ -57,6 +58,100 @@ export const login = async (req, res) => {
 
   } catch (error) {
     console.error("Error signing in:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const line_login = async (req, res) => {
+  try {
+    const { userId , accessToken } = req.body;
+
+
+
+    console.log("Access Token:", accessToken);
+    console.log("User ID:", userId);
+
+
+    if (!accessToken ) {
+      return res.status(400).json({ message: "Access Token is required" });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+    const line_profile = await prisma.Account.findFirst({
+      where: { user_id_line: userId },
+    });
+
+    if (!line_profile) {
+      return res.status(401).json({ message: "ไม่พบบัญชีผู้ใช้ที่ผูกกับ LINE นี้" });
+    }
+
+
+    let lineProfile;
+    try {
+      const response = await axios.get("https://api.line.me/v2/profile", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      lineProfile = response.data;
+    } catch (lineError) {
+      console.error("LINE Token Verification Failed:", lineError.message);
+      return res.status(401).json({ message: "LINE Token ไม่ถูกต้องหรือหมดอายุ" });
+    }
+
+    
+    const secureUserId = lineProfile.userId; 
+
+
+    const user = await prisma.Account.findFirst({
+      where: { user_id_line: secureUserId },
+    });
+
+    if (!user) {
+      return res.status(401).json({ 
+        message: "ไม่พบบัญชีผู้ใช้ที่ผูกกับ LINE นี้",
+        lineUserId: secureUserId 
+      });
+    }
+
+    const token = jwt.sign({ id: user.user_ID }, config.secret, {
+      expiresIn: 86400, 
+    });
+
+    await prisma.logs.create({
+      data: {
+        Account: {
+          connect: { user_ID: user.user_ID },
+        },
+        action: "login_line",
+        ip_address: req.ip || req.socket.remoteAddress,
+        created_at: new Date(),
+      },
+    });
+
+     res.status(200)
+  .cookie("accessToken", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax", 
+    path: "/",       
+    maxAge: 86400 * 1000,
+  })
+      .json({
+        message: "เข้าสู่ระบบด้วย LINE สำเร็จ",
+        user: {
+          id: user.user_ID,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          position: user.position,
+          pictureUrl: lineProfile.pictureUrl 
+        },
+      });
+
+  } catch (error) {
+    console.error("Error signing in with LINE:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -124,6 +219,118 @@ export const register = async (req, res) => {
   }
 };
 
+
+export const line_reg = async (req, res) => {
+  try {
+    const { 
+      first_name, 
+      last_name, 
+      email, 
+      birthdate, 
+      gender, 
+      phone_number, 
+      accessToken 
+    } = req.body;
+
+    const tokenLine = accessToken.replace("Bearer ", "");
+
+    if (!accessToken) {
+      return res.status(400).json({ message: "Access Token is required" });
+    }
+    let lineProfile;
+    try {
+      const response = await axios.get("https://api.line.me/v2/profile", {
+        headers: {
+          Authorization: `Bearer ${tokenLine}`,
+        },
+      });
+      lineProfile = response.data;
+      console.log(lineProfile);
+    } catch (lineError) {
+      console.error("LINE Token Verification Failed:", lineError.message);
+      return res.status(401).json({ message: "LINE Token ไม่ถูกต้องหรือหมดอายุ" });
+    }
+
+    // ✅ ได้ ID ที่แท้จริงจาก LINE
+    const secureUserId = lineProfile.userId;
+
+    // ==========================================
+    // 3. ตรวจสอบว่ามี User นี้หรือยัง (ใช้ ID จาก LINE)
+    // ==========================================
+    const existingUser = await prisma.Account.findFirst({
+      where: { user_id_line: secureUserId },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ message: "บัญชี LINE นี้ถูกลงทะเบียนไว้แล้ว กรุณาเข้าสู่ระบบ" });
+    }
+
+
+    
+    // สร้าง Username ไม่ให้ซ้ำ
+    const generatedUsername = `line_${secureUserId.substring(0, 8)}`;
+
+    // ==========================================
+    // 5. บันทึกลง Database
+    // ==========================================
+    const user = await prisma.Account.create({
+      data: {
+        user_id_line: secureUserId,
+        first_name: first_name || lineProfile.displayName, // ถ้าไม่กรอก ใช้ชื่อไลน์
+        last_name: last_name || "",
+        email: email || null, // LINE อาจจะไม่ส่ง email มาให้ถ้า user ไม่ allow
+        phone_number: phone_number || "", // ✅ แก้ typo (ลบ underscore ออก)
+        position: "Agriculture",
+      
+      }
+    });
+
+    // ==========================================
+    // 6. สร้าง JWT Token (Auto Login)
+    // ==========================================
+    const token = jwt.sign({ id: user.user_ID }, config.secret, {
+      expiresIn: 86400, 
+    });
+
+    // ==========================================
+    // 7. บันทึก Log (แก้ Syntax connect)
+    // ==========================================
+    await prisma.logs.create({
+      data: {
+        Account: { connect: { user_ID: user.user_ID } }, // ✅ ใช้ connect syntax
+        action: "register_line",
+        ip_address: req.ip || req.socket.remoteAddress,
+        created_at: new Date(),
+      },
+    });
+
+    // ==========================================
+    // 8. ส่ง Response
+    // ==========================================
+    res.status(200)
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 86400 * 1000,
+      })
+      .json({
+        message: "ลงทะเบียนและเข้าสู่ระบบด้วย LINE สำเร็จ",
+        user: {
+          id: user.user_ID,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          position: user.position,
+          pictureUrl: lineProfile.pictureUrl 
+        },
+      });
+
+  } catch (error) {
+    console.error("Error signing in with LINE:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 export const logout = (req, res) => {
   try {
