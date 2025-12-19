@@ -1,20 +1,20 @@
-
 FROM node:22
 
-# กำหนด directory เริ่มต้นใน container (ตอน run ขึ้นมา)
+# กำหนด directory เริ่มต้น
 WORKDIR /usr/src/app
 
-# ทำการ copy file package.json จากเครื่อง local เข้ามาใน container
-COPY package.json ./
+# copy package.json และ package-lock.json (ถ้ามี)
+COPY package*.json ./
 
-# ทำการลง dependency node
+# ลง dependency
 RUN npm install
 
-# copy file server.js เข้ามาใน container
-COPY server.js ./
+# ❌ ลบบรรทัดนี้ทิ้ง: COPY server.js ./
+# ✅ ใส่บรรทัดนี้แทน: copy ทุกไฟล์ (รวมถึง folder app/) เข้าไป
+COPY . .
 
-# ทำการปล่อย port 8000 ออกมาให้ access ได้
+# ปล่อย port
 EXPOSE 8000
 
-# กำหนด command สำหรับเริ่มต้น run application (ตอน run container)
+# รัน
 CMD ["node", "server.js"]
