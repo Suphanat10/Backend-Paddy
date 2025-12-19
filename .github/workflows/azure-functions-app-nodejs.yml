@@ -35,14 +35,11 @@ jobs:
           cd "$TARGET_DIR"
 
           echo "🔐 Creating .env file..."
-          cat > .env <<EOF
-DATABASE_URL=$DATABASE_URL
-JWT_SECRET=$JWT_SECRET
-PORT=$PORT
-EOF
+          printf "DATABASE_URL=%s\nJWT_SECRET=%s\nPORT=%s\n" \
+            "$DATABASE_URL" "$JWT_SECRET" "$PORT" > .env
 
           echo "🛑 Removing old containers..."
-          docker compose down -v
+          docker compose down -v || true
 
           echo "🛢️ Rebuilding Containers..."
           docker compose up -d --build --force-recreate
