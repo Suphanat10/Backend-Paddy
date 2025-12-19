@@ -10,6 +10,8 @@ services:
   db:
     image: mysql:8.0
     container_name: db
+    env_file:
+      - .env
     environment:
       DATABASE_URL: mysql://paddy_admin:Paddy%402025_Secure%21@db:3306/Project-01
     ports:
