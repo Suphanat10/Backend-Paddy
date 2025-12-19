@@ -6,16 +6,19 @@ services:
       - .env
     ports:
       - "8001:8000"
+    depends_on:
+      - db
 
   db:
     image: mysql:8.0
     container_name: db
-    env_file:
-      - .env
     environment:
-      DATABASE_URL: mysql://paddy_admin:Paddy%402025_Secure%21@db:3306/Project-01
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: Project-01
+      MYSQL_USER: paddy_admin
+      MYSQL_PASSWORD: Paddy@2025_Secure!
     ports:
-      - "3307:3306"  
+      - "3307:3306"
     volumes:
       - mysql_data_test:/var/lib/mysql
 
@@ -35,4 +38,3 @@ services:
 volumes:
   mysql_data_test:
     driver: local
-
