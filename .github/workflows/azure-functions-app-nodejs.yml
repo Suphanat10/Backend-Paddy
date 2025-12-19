@@ -2,40 +2,48 @@ name: Deploy Backend-Paddy
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   deploy:
-    runs-on: self-hosted # จะไปเรียก Runner ตัวใหม่ที่เราเพิ่งลง
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Deploy Backend
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          # โฟลเดอร์ปลายทางบน Server (ใช้ที่เดิมเพื่อให้ Nginx หาเจอ)
+          set -e
+
           TARGET_DIR="/var/www/html/smart-paddy/backend"
-          
-          echo "🚀 Moving files to $TARGET_DIR..."
-          
-          # สร้างโฟลเดอร์เผื่อไว้
-          mkdir -p $TARGET_DIR
 
-          # ส่งไฟล์จาก Repo นี้ (ที่เป็น root แล้ว) ไปที่ปลายทาง
-          # --delete จะลบไฟล์เก่าใน Server ที่ไม่มีใน GitHub ออกด้วย
-          rsync -avz --delete --exclude '.git' --exclude 'node_modules' ./ $TARGET_DIR/
+          echo "🚀 Syncing files to $TARGET_DIR..."
+          mkdir -p "$TARGET_DIR"
 
-          # เข้าไปสั่ง Docker
-          cd $TARGET_DIR
-          
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            ./ "$TARGET_DIR/"
+
+          cd "$TARGET_DIR"
+
+          echo "🔐 Creating .env file..."
+          cat <<EOF > .env
+          DATABASE_URL=$DATABASE_URL
+          JWT_SECRET=$JWT_SECRET
+          PORT=$PORT
+          EOF
+
           echo "🛢️ Rebuilding Containers..."
-          
-          # สั่ง Docker Compose
           docker compose down
           docker compose up -d --build
-          
-          # ล้างขยะ
+
+          echo "🧹 Cleaning unused images..."
           docker image prune -f
-          
-          echo "✅ Backend Deployed Successfully!"
+
+          echo "✅ Backend Deployment Successful!"
