@@ -1,17 +1,16 @@
 services:
   node-server:
     build: .
-    container_name: node-server
-    env_file:
-      - .env
     ports:
       - "8001:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 8000
     depends_on:
       - db
 
   db:
     image: mysql:8.0
-    container_name: db
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: Project-01
@@ -24,7 +23,6 @@ services:
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
-    container_name: phpmyadmin
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
@@ -32,9 +30,6 @@ services:
       PMA_PASSWORD: root
     ports:
       - "8081:80"
-    depends_on:
-      - db
 
 volumes:
   mysql_data_test:
-    driver: local
