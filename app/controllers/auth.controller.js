@@ -132,13 +132,13 @@ export const line_login = async (req, res) => {
     });
 
      res.status(200)
-  .cookie("accessToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax", 
-    path: "/",       
-    maxAge: 86400 * 1000,
-  })
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
+        maxAge: 86400 * 1000,
+    })
       .json({
         message: "เข้าสู่ระบบด้วย LINE สำเร็จ",
         user: {

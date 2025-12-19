@@ -16,12 +16,12 @@ import cookieParser from "cookie-parser";
 import { initWebSocket } from "./app/websocket/socketHandler.js";
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = 8000;
 
 
 app.set("trust proxy", true);
 app.use(cors({
-  origin: true,
+  origin: "https://smart-paddy.space",
   methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
   credentials: true,
