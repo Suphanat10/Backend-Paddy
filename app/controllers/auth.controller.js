@@ -120,16 +120,6 @@ export const line_login = async (req, res) => {
       expiresIn: 86400, 
     });
 
-    await prisma.logs.create({
-      data: {
-        Account: {
-          connect: { user_ID: user.user_ID },
-        },
-        action: "login_line",
-        ip_address: req.ip || req.socket.remoteAddress,
-        created_at: new Date(),
-      },
-    });
 
      res.status(200).cookie("accessToken", token, {
       httpOnly: true,
