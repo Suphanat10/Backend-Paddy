@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    environment: ENV   # 🔥 ผูก GitHub Environment
 
     steps:
       - name: Checkout code
@@ -48,4 +49,5 @@ jobs:
           docker image prune -f
 
           echo "✅ Backend Deployment Successful!"
+
 
