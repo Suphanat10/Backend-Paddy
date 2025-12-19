@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import config from "../config/auth.config.js";
 import { log } from "console";
+import axios from "axios";
 
 export const changePassword = async (req, res) => {
   try {
@@ -92,66 +93,144 @@ export const getProfile = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 export const updateProfile = async (req, res) => {
   try {
-      const user_id = req.user?.id;
+    // แก้ไขจุดนี้: ดึงเฉพาะ id ออกมาจาก Object req.user
+    // จาก Error เดิมระบุว่า id อยู่ใน Object (req.user.id)
+    const user_id = req.user.id; 
 
-      const { first_name, last_name, phone_number, gender , email } = req.body;
+    const { first_name, last_name, phone_number, gender, email } = req.body;
 
-      if(!user_id) {
-        return res.status(400).json({ message: "User ID missing in token" });
-      }
+    // Validation
+    if (!first_name || !last_name) {
+      return res.status(400).json({ message: "กรุณากรอกชื่อและนามสกุล" });
+    }
+    if (!phone_number) {
+      return res.status(400).json({ message: "กรุณากรอกเบอร์โทรศัพท์" });
+    }
+    if (!email) {
+      return res.status(400).json({ message: "กรุณากรอกอีเมล" });
+    }
 
-      if(!first_name || !last_name) {
-         return res.status(400).json({ message: "กรุณากรอกชื่อและนามสกุล" });
-      }
+    // อัปเดตข้อมูล
+    const updatedProfile = await prisma.Account.update({
+      where: { 
+        // มั่นใจว่าเป็น Integer โดยใช้ Number() หรือ parseInt()
+        user_ID: Number(user_id) 
+      },
+      data: {
+        first_name,
+        last_name,
+        phone_number,
+        gender: gender || null, // ป้องกันกรณี gender เป็น undefined ให้ลงเป็น null แทน
+        email
+      },
+      select: {
+        user_ID: true,
+        first_name: true,
+        last_name: true,
+        email: true,
+        phone_number: true,
+        gender: true,
+        birth_date: true,
+        position: true,
+      },
+    });
 
-      if(!phone_number) {
-         return res.status(400).json({ message: "กรุณากรอกเบอร์โทรศัพท์" });
-      }
-
-      if(!email) {
-         return res.status(400).json({ message: "กรุณากรอกอีเมล" });
-      }
-
-      const updatedProfile = await prisma.Account.update({
-         where: { user_ID: user_id },
-         data: {
-            first_name,
-            last_name,
-            phone_number,
-            gender,
-            email
-         },
-       select: {
-            user_ID: true,
-            first_name: true,
-            last_name: true,
-            email: true,
-            phone_number: true,
-            gender: true,
-            birth_date: true,
-            position: true,
-         },
-      });
-
-      res.status(200).json({ message: "อัปเดตโปรไฟล์สำเร็จ", profile: updatedProfile });
-
+    // บันทึก Logs
+    // แนะนำให้ย้ายมาไว้ก่อน res.status หรือใช้ try-catch แยกเพื่อไม่ให้ขัดขวางการตอบกลับหลัก
+    try {
       await prisma.logs.create({
         data: {
-            Account: {
-          connect: { user_ID: updatedProfile.user_ID }
-        },
+          Account: {
+            connect: { user_ID: updatedProfile.user_ID }
+          },
           action: "update_profile",
-          ip_address: req.ip,
+          ip_address: req.ip || "unknown",
           created_at: new Date(),
         },
       });
+    } catch (logError) {
+      console.error("Failed to create log:", logError);
+      // ไม่ต้อง return res เพราะเราส่งคำตอบหลักไปแล้ว
+    }
+
+    return res.status(200).json({ 
+      message: "อัปเดตโปรไฟล์สำเร็จ", 
+      profile: updatedProfile 
+    });
 
   } catch (error) {
     console.error("Error updating profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const connect_Line = async (req, res) => {
+  try {
+    const user_id = req.user?.id;
+    const accessToken = req.body.accessToken;
+
+    if (!user_id) {
+      return res.status(400).json({ message: "ไม่พบ User ID ใน Token" });
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ message: "ไม่พบ Access Token" });
+    }
+
+    // ลบคำว่า Bearer ออกหากติดมา
+    const tokenLine = accessToken.replace("Bearer ", "");
+
+    // 1. ตรวจสอบ Profile จาก LINE API
+    let lineProfile;
+    try {
+      const response = await axios.get("https://api.line.me/v2/profile", {
+        headers: { Authorization: `Bearer ${tokenLine}` },
+      });
+      lineProfile = response.data;
+    } catch (lineError) {
+      console.error("LINE Verification Failed:", lineError.response?.data || lineError.message);
+      return res.status(401).json({ message: "LINE Token ไม่ถูกต้องหรือหมดอายุ" });
+    }
+
+
+    const lineConnection = await prisma.Account.update({
+      where: { user_ID: user_id },
+      data: {
+        line_ID: lineProfile.userId,
+      },
+    });
+
+  
+    res.status(200).json({ 
+      message: "เชื่อมต่อ LINE สำเร็จ", 
+      line: lineConnection,
+      displayName: lineProfile.displayName 
+    });
+
+
+    try {
+      await prisma.logs.create({
+        data: {
+          Account: {
+            connect: { user_ID: user_id }
+          },
+          action: "connect_line",
+          ip_address: req.ip || "unknown",
+          created_at: new Date(),
+        },
+      });
+    } catch (logError) {
+      console.error("Log Creation Failed:", logError.message);
+    }
+
+  } catch (error) {
+    console.error("Error connecting line:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" });
+    }
   }
 };
 

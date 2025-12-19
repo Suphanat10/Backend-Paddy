@@ -99,7 +99,6 @@ export const updateSetting = async (req, res) => {
         }
       });
     } else {
-      // 🆕 create
       updatedSetting = await prisma.User_Settings.create({
         data: {
           device_registrations_ID: device.device_registrations_ID,
