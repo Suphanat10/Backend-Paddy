@@ -202,14 +202,7 @@ export const register = async (req, res) => {
       }
     });
 
-    await prisma.logs.create({
-      data: {
-        user_ID: created.user_ID,     
-        action: "create_account",
-        ip_address: req.ip,
-        created_at: new Date(),
-      },
-    });
+ 
 
     return res.status(200).json({ message: "สมัครสมาชิกสำเร็จ", success: true });
 
@@ -295,14 +288,6 @@ export const line_reg = async (req, res) => {
     // ==========================================
     // 7. บันทึก Log (แก้ Syntax connect)
     // ==========================================
-    await prisma.logs.create({
-      data: {
-        Account: { connect: { user_ID: user.user_ID } }, // ✅ ใช้ connect syntax
-        action: "register_line",
-        ip_address: req.ip || req.socket.remoteAddress,
-        created_at: new Date(),
-      },
-    });
 
     // ==========================================
     // 8. ส่ง Response
