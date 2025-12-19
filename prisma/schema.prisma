@@ -74,7 +74,7 @@ model Growth_Analysis {
 model Logs {
   logs_ID    Int       @id @default(autoincrement())
   user_ID    Int
-  ip_address String?   @db.VarChar(30)
+  ip_address String?   @db.VarChar(50)
   action     String    @db.VarChar(225)
   created_at DateTime? @default(now()) @db.DateTime(0)
   Account    Account   @relation(fields: [user_ID], references: [user_ID], onDelete: Cascade, map: "Logs_ibfk_1")
