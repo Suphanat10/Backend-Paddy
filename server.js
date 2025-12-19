@@ -28,6 +28,7 @@ app.use(cors({
   origin: (origin, callback) => {
     const allowedOrigins = [
       "http://localhost:3001", 
+      // "https://gorgeous-superserviceably-dannielle.ngrok-free.dev"
       "https://smart-paddy.space"
     ];
     if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin === "true") {
