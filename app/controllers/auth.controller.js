@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import axios from "axios";
 import config from "../config/auth.config.js";
+import { Resend } from "resend";
 
 export const login = async (req, res) => {
   try {
@@ -45,16 +46,7 @@ export const login = async (req, res) => {
     },
   });
 
-    await prisma.logs.create({
-      data: {
-        Account: {
-          connect: { user_ID: user.user_ID }
-        },
-        action: "login",
-        ip_address: req.ip,
-        created_at: new Date(),
-      },
-    });
+
 
   } catch (error) {
     console.error("Error signing in:", error);
@@ -317,8 +309,10 @@ export const logout = (req, res) => {
   }
 };
 
-const OTP_EXPIRE_MIN = 1; // อายุ OTP 1 นาที
+const OTP_EXPIRE_MIN = 5; // อายุ OTP 5 นาที
 const OTP_COOLDOWN_SEC = 60; // ขอใหม่ได้ทุก 60 วิ
+
+const resend = new Resend("re_fNfEQpA7_Jodua8fLgx381LWk2monYN3V");
 
 export const RequestOTP = async (req, res) => {
   try {
@@ -328,20 +322,15 @@ export const RequestOTP = async (req, res) => {
       return res.status(400).json({ message: "กรุณากรอกอีเมล" });
     }
 
-    // ============================
-    // 1) ตรวจสอบว่ามีผู้ใช้หรือไม่
-    // ============================
     const user = await prisma.account.findFirst({
-      where: { email }
+      where: { email },
     });
 
     if (!user) {
       return res.status(400).json({ message: "ไม่พบบัญชีผู้ใช้" });
     }
 
-    // ============================
-    // 2) ตรวจสอบ rate limit (กันสแปม)
-    // ============================
+    // 2) ตรวจสอบ rate limit
     const lastOtp = await prisma.oTP.findFirst({
       where: { user_id: user.user_ID },
       orderBy: { otp_id: "desc" },
@@ -349,24 +338,20 @@ export const RequestOTP = async (req, res) => {
 
     if (lastOtp) {
       const now = new Date();
-
-      // OTP ล่าสุดหมดอายุเวลา lastOtp.expired_at
-      // เวลาที่ขอเก่า + cooldown > ตอนนี้ ? ยังไม่อนุญาตให้ขอใหม่
       const lastCooldownEnd = new Date(
         lastOtp.expired_at.getTime() - OTP_EXPIRE_MIN * 60000 + OTP_COOLDOWN_SEC * 1000
       );
-
       if (lastCooldownEnd > now) {
-        return res.status(429).json({ message: "กรุณารอเวลา 1 นาที ก่อนขอ OTP ใหม่" });
+        return res
+          .status(429)
+          .json({ message: "กรุณารอเวลา 1 นาที ก่อนขอ OTP ใหม่" });
       }
     }
 
-    // ============================
     // 3) สร้าง OTP แบบสุ่ม 6 หลัก
-    // ============================
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await prisma.oTP.create({
+    const otp = await prisma.oTP.create({
       data: {
         user_id: user.user_ID,
         otp_code: otpCode,
@@ -374,40 +359,155 @@ export const RequestOTP = async (req, res) => {
       },
     });
 
-    // ============================
-    // 4) ส่งอีเมล OTP
-    // ============================
-
-    const user0 = "smartpaddy.p@gmail.com";
-    const pass = "Suphanat10";
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: user0,
-        pass: pass
-      },
+    // 4) ส่งอีเมล OTP ผ่าน Resend
+    await resend.emails.send({
+      from: "no-reply@smart-paddy.space",
+      to: email,
+      subject: "รหัส OTP ของคุณ",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <h2 style="color: #2E86C1;">รหัส OTP ของคุณ</h2>
+          <p>รหัส OTP ของคุณคือ:</p>
+          <p style="font-size: 24px; font-weight: bold; margin: 10px 0;">${otpCode}</p>
+          <p>รหัสนี้จะหมดอายุภายใน <strong>${OTP_EXPIRE_MIN} นาที</strong></p>
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;" />
+          <p style="font-size: 12px; color: #999;">
+            หากคุณไม่ได้ขอรหัสนี้ โปรดละเว้นอีเมลฉบับนี้
+          </p>
+        </div>
+      `,
     });
 
-    console.log("transporter", transporter);
-
-    const mailOptions = {
-      from: `"Smart Paddy" <${"smartpaddy2025@gmail.com"}>`,
-      to: email,
-      subject: "รหัส OTP สำหรับรีเซ็ตรหัสผ่าน",
-      html: `
-        <h2>รหัส OTP ของคุณ</h2>
-        <p style="font-size:20px; font-weight:bold;">${otpCode}</p>
-        <p>รหัสมีอายุ ${OTP_EXPIRE_MIN} นาที</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    return res.status(200).json({ message: "ส่งรหัส OTP สำเร็จ" });
-
+    return res.json({ message: "ส่ง OTP เรียบร้อยแล้ว" });
   } catch (error) {
     console.error("Request OTP error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+
+export const login_admin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password)
+      return res.status(400).json({ message: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" });
+
+    const user = await prisma.Account.findFirst({
+      where: { email , position: "Admin" }
+    });
+
+    if (!user)
+      return res.status(401).json({ message: "ไม่พบบัญชีผู้ใช้" });
+
+    const passwordIsValid = bcrypt.compareSync(password, user.password);
+    if (!passwordIsValid)
+      return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
+
+    const token = jwt.sign({ id: user.user_ID }, config.secret, {
+      expiresIn: 86400,
+    });
+
+    res.status(200)
+  .cookie("accessToken", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax", 
+    path: "/",     
+    maxAge: 86400 * 1000,
+  })
+  .json({
+    message: "เข้าสู่ระบบสำเร็จ",
+    user: {
+      id: user.user_ID,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      position: user.position,
+    },
+  });
+
+  
+  } catch (error) {
+    console.error("Error signing in:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const VerifyOTP = async (req, res) => {
+  try {
+    const { otp } = req.body;
+
+    if (!otp) {
+      return res.status(400).json({ message: "กรุณากรอกรหัส OTP" });
+    }
+
+    const otpRecord = await prisma.OTP.findFirst({
+      where: {
+        otp_code: otp,
+      },
+      orderBy: { otp_id: "desc" },
+    });
+    if (!otpRecord) {
+      return res.status(400).json({ message: "รหัส OTP ไม่ถูกต้อง" });
+    }
+
+    const now = new Date();
+    if (otpRecord.expired_at < now) {
+      return res.status(400).json({ message: "รหัส OTP หมดอายุ" });
+    }
+   
+     await prisma.OTP.update({
+      where: { otp_id: otpRecord.otp_id },
+      data: { is_verified: true },
+    });
+    
+    return res.json({ message: "ยืนยัน OTP สำเร็จ" });
+
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+export const verifyOtpAndResetPassword = async (req, res) => {
+  try {
+    const { otp, new_password } = req.body;
+
+    if (!otp || !new_password) {
+      return res.status(400).json({ message: "กรุณากรอก OTP และรหัสผ่านใหม่" });
+    }
+
+    const otpRecord = await prisma.OTP.findFirst({
+      where: { otp_code: otp },
+      orderBy: { otp_id: "desc" },
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({ message: "รหัส OTP ไม่ถูกต้อง" });
+    }
+
+    if (otpRecord.is_verified === false) {
+      return res.status(400).json({ message: "ไม่พบการยืนยัน OTP" });
+    }
+ 
+     const pass = bcrypt.hashSync(new_password, 8);
+    // 3. เปลี่ยนรหัสผ่านผู้ใช้
+    await prisma.account.update({
+      where: { user_ID: otpRecord.user_id },
+      data: { password: pass }, 
+    });
+
+    await prisma.OTP.delete({ where: { otp_id: otpRecord.otp_id } });
+
+    return res.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
+
+  } catch (error) {
+    console.error("verifyOtpAndResetPassword error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

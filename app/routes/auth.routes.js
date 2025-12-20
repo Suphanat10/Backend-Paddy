@@ -1,4 +1,4 @@
-import { login, register  , RequestOTP , line_login , line_reg  ,  logout } from "../controllers/auth.controller.js";
+import { login, register  , RequestOTP , line_login , line_reg  ,  logout  ,   login_admin  , VerifyOTP  , verifyOtpAndResetPassword } from "../controllers/auth.controller.js";
 
 export default function (app) {
   app.use(function (req, res, next) {
@@ -14,6 +14,10 @@ export default function (app) {
   app.post("/api/auth/line-register", line_reg);
   app.post("/api/auth/register", register);
   app.post("/api/auth/logout", logout);
+  app.post("/api/auth/verify-otp", VerifyOTP);
 
   app.post("/api/auth/request-otp", RequestOTP);
+  app.post("/api/auth/reset-password", verifyOtpAndResetPassword);
+
+  app.post("/api/auth/login-admin", login_admin);
 }

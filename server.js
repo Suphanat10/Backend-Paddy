@@ -21,22 +21,19 @@ const PORT = process.env.PORT || 8000; // ใช้ Environment Variable ถ้�
 
 app.set("trust proxy", true);
 
-// ปรับปรุง CORS ให้ยืดหยุ่นและปลอดภัยขึ้น
 app.use(cors({
-  // ตรวจสอบ origin ว่าถ้าเป็น "true" (string) อาจจะหมายถึงต้องการให้ dynamic origin หรือไม่
-  // แนะนำให้ใช้ function เพื่อรองรับทั้ง localhost และ production
+
   origin: (origin, callback) => {
-    const allowedOrigins = [
-      "http://localhost:3001", 
-      // "https://gorgeous-superserviceably-dannielle.ngrok-free.dev"
-      "https://smart-paddy.space"
-    ];
-    if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin === "true") {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  const allowedOrigins = [
+    "http://localhost:3001", 
+    "https://smart-paddy.space",
+  ];
+  if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin === "true") {
+    callback(null, true);
+  } else {
+    callback(new Error("Not allowed by CORS"));
+  }
+},
   methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
   credentials: true,

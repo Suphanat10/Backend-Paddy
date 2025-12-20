@@ -96,6 +96,9 @@ export const get_user = async (req, res) => {
             }
           }
         }
+      },
+      where : {
+        position : "Agriculture"
       }
     });
 
