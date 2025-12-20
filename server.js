@@ -28,11 +28,13 @@ app.use(cors({
     "http://localhost:3001", 
     "https://smart-paddy.space",
   ];
-  if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin === "true") {
-    callback(null, true);
-  } else {
-    callback(new Error("Not allowed by CORS"));
-  }
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
 },
   methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
