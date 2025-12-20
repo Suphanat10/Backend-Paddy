@@ -15,75 +15,80 @@ import esp32Routes from "./app/routes/esp32.routes.js";
 import { initWebSocket } from "./app/websocket/socketHandler.js";
 
 const app = express();
-const PORT = process.env.PORT || 8000; // ใช้ Environment Variable ถ้ามี
+const PORT = process.env.PORT || 8000;
 
 // ---------- Middleware & Security ----------
 
 app.set("trust proxy", true);
 
-app.use(cors({
-
-  origin: (origin, callback) => {
-  const allowedOrigins = [
-    "http://localhost:3001", 
+/**
+ * ✅ CORS ใช้เฉพาะ HTTP API เท่านั้น
+ * ❌ ไม่ใช้ app.use(cors()) แบบ global
+ */
+const corsOptions = {
+  origin: [
+    "http://localhost:3001",
     "https://smart-paddy.space",
-  ];
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error("Not allowed by CORS"));
-},
-  methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
+  ],
   credentials: true,
-}));
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+  ],
+};
 
-// ปรับขนาดการรับข้อมูล (Payload) ป้องกันการโจมตีแบบ DOS
-app.use(express.json({ limit: "10mb" })); 
+// apply CORS เฉพาะ route ที่เป็น API
+app.use("/api", cors(corsOptions));
+
+// ---------- Body & Cookie ----------
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
-
+// ---------- Routes ----------
 const registerRoutes = (app) => {
-  authRoutes(app);
-  profileRoutes(app);
-  FarmAreaRoutes(app);
-  settingRoutes(app);
-  dataRoutes(app);
-  adminRoutes(app);
-  esp32Routes(app);
+  app.use("/api/auth", authRoutes);
+  app.use("/api/profile", profileRoutes);
+  app.use("/api/farm-area", FarmAreaRoutes);
+  app.use("/api/setting", settingRoutes);
+  app.use("/api/data", dataRoutes);
+  app.use("/api/admin", adminRoutes);
+  app.use("/api/esp32", esp32Routes);
 };
 
 registerRoutes(app);
 
-// Global Error Handler สำหรับ HTTP
+// ---------- Global Error Handler ----------
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send({ message: "Something went wrong on the server!" });
+  console.error("❌ Error:", err.message);
+  res.status(500).json({
+    message: "Something went wrong on the server!",
+  });
 });
 
 // ---------- Server & WebSocket ----------
 
-// สร้าง HTTP Server
 const server = http.createServer(app);
 
-// เริ่ม WebSocket บน server เดียวกัน
+// ✅ WebSocket ไม่ผ่าน CORS middleware
 initWebSocket(server);
 
-// เริ่ม server ด้วย Error Handling
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`
-  Server is ready!
-  HTTP Server: http://localhost:${PORT}
-  WebSocket:  ws://localhost:${PORT}
-  `);
-}).on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use.`);
-  } else {
-    console.error(`Server error:`, err);
-  }
-});
+server
+  .listen(PORT, "0.0.0.0", () => {
+    console.log(`
+Server is ready!
+HTTP API   : http://localhost:${PORT}/api
+WebSocket  : ws://localhost:${PORT}
+`);
+  })
+  .on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already in use.`);
+    } else {
+      console.error("Server error:", err);
+    }
+  });
