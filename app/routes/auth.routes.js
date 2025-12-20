@@ -15,6 +15,7 @@ export default function (app) {
   app.post("/api/auth/register", register);
   app.post("/api/auth/logout", logout);
   app.post("/api/auth/verify-otp", VerifyOTP);
+  
 
   app.post("/api/auth/request-otp", RequestOTP);
   app.post("/api/auth/reset-password", verifyOtpAndResetPassword);

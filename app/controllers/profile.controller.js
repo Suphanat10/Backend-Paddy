@@ -249,18 +249,13 @@ export const getdataPofile_notification = async (req, res) => {
         device_registrations: {
           select: {
             device_registrations_ID: true,
-            device_ID: true,        // field ธรรมดา
+            device_ID: true,        
             status: true,
-            Logs_Alert: true     // relation จาก schema
+            Logs_Alert: true     
           }
         }
       }
     });
-
-  
-    
-
-
     if (!profile_notification) {
       return res.status(404).json({ message: "Profile not found" });
     }
