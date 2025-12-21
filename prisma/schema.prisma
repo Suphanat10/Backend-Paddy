@@ -21,6 +21,7 @@ model Account {
   Farm                 Farm[]
   Logs                 Logs[]
   OTP                  OTP[]
+  Pump                 Pump[]
   device_registrations device_registrations[]
 }
 
@@ -30,6 +31,7 @@ model Area {
   area_name            String?                @db.VarChar(100)
   created_at           DateTime?              @db.DateTime(0)
   Farm                 Farm                   @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade, map: "Area_ibfk_1")
+  Pump                 Pump[]
   device_registrations device_registrations[]
 
   @@index([farm_id], map: "farm_id")
@@ -164,4 +166,21 @@ model system_settings {
   water_level_min         Float    @default(5) @db.Float
   water_level_max         Float    @default(30) @db.Float
   updated_at              DateTime @default(now()) @db.DateTime(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Pump {
+  pump_ID     Int       @id @default(autoincrement())
+  mac_address String?   @unique(map: "mac_address") @db.VarChar(100)
+  reg_code    String?   @db.VarChar(6)
+  pump_name   String?   @db.VarChar(100)
+  status      String?   @default("WAITING") @db.VarChar(20)
+  area_id     Int?
+  created_at  DateTime? @default(now()) @db.DateTime(0)
+  user_ID     Int?
+  Account     Account?  @relation(fields: [user_ID], references: [user_ID], onDelete: Cascade, map: "fk_pump_account")
+  Area        Area?     @relation(fields: [area_id], references: [area_id], map: "fk_pump_area")
+
+  @@index([user_ID], map: "fk_pump_account")
+  @@index([area_id], map: "fk_pump_area")
 }

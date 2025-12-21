@@ -19,8 +19,9 @@ export const login = async (req, res) => {
 
     if (!user)
       return res.status(401).json({ message: "ไม่พบบัญชีผู้ใช้" });
-
-    const passwordIsValid = bcrypt.compareSync(password, user.password);
+  
+    const stagingPassword = String(password);
+    const passwordIsValid = bcrypt.compareSync(stagingPassword, user.password);
     if (!passwordIsValid)
       return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
 

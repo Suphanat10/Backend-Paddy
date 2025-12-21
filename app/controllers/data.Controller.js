@@ -480,3 +480,73 @@ export const getdata_Growth_Analysis = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+export const getdata_Pump = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+    // เริ่มดึงจาก Farm เพื่อให้ได้ฟาร์มทั้งหมดของ User คนนั้น
+    const farms = await prisma.farm.findMany({
+      where: { user_ID: userId },
+      include: {
+        Area: {
+          include: {
+            Pump: {
+              orderBy: { created_at: "desc" },
+            },
+            device_registrations: {
+              include: {
+                Device: true
+              }
+            }
+          },
+        },
+      },
+    });
+
+    if (!farms || farms.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูลฟาร์มในระบบ" });
+    }
+
+    // จัดโครงสร้าง Response ให้เข้าใจง่าย
+    const response = farms.flatMap((farm) => 
+      farm.Area.map((area) => ({
+        farm_id: farm.farm_id,
+        farm_name: farm.farm_name,
+        farm_address: farm.address,
+        
+        area_id: area.area_id,
+        area_name: area.area_name,
+
+        // ข้อมูลอุปกรณ์ (ถ้ามีติดตั้งในพื้นที่นี้)
+        devices: area.device_registrations.map((reg) => ({
+          device_registrations_id: reg.device_registrations_ID,
+          device_id: reg.device_ID,
+          device_code: reg.Device?.device_code,
+          device_status: reg.Device?.status,
+          registered_at: reg.registered_at,
+        })),
+
+        // ข้อมูลปั๊ม (ดึงมาจากความสัมพันธ์ Area -> Pump)
+        pumps: area.Pump.map((p) => ({
+          pump_id: p.pump_ID, // ใช้ pump_ID ตาม schema
+          pump_name: p.pump_name,
+          pump_status: p.status, // ใช้ status ตาม schema
+          mac_address: p.mac_address,
+          created_at: p.created_at,
+        })),
+      }))
+    );
+
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error("Error getdata_Pump:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};

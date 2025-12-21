@@ -522,7 +522,7 @@ export const transferDevice = async (req, res) => {
 
       
       const stopPayload = {
-         message : "Stop the connection.",
+        message : "Stop the connection.",
         connectDevice: false,
         type: "STOP_CONNECTION",
       };
