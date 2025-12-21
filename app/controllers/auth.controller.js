@@ -13,15 +13,35 @@ export const login = async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" });
 
-    const user = await prisma.Account.findFirst({
-      where: { email }
-    });
+     const user = await prisma.Account.findFirst({
+  where: { email },
+  select: {
+    user_ID: true,
+    email: true,
+    password: true, // ⭐ สำคัญ
+    first_name: true,
+    last_name: true,
+    position: true,
+  },
+});
 
     if (!user)
       return res.status(401).json({ message: "ไม่พบบัญชีผู้ใช้" });
   
-    const stagingPassword = String(password);
-    const passwordIsValid = bcrypt.compareSync(stagingPassword, user.password);
+      const hashedPassword =
+  typeof user.password === "string"
+    ? user.password
+    : user.password?.password;
+
+if (!hashedPassword) {
+  return res.status(500).json({ message: "รูปแบบรหัสผ่านไม่ถูกต้อง" });
+}
+const passwordIsValid = bcrypt.compareSync(
+  String(password),
+  hashedPassword
+);
+
+
     if (!passwordIsValid)
       return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
 

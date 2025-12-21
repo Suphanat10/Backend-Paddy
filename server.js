@@ -115,7 +115,7 @@ const PORT = process.env.PORT || 8000;
 
 app.set("trust proxy", true);
 
-// ✅ CORS (รองรับ browser + ไม่พัง ESP32 + ไม่พัง WS)
+// CORS (รองรับ browser + ไม่พัง ESP32 + ไม่พัง WS)
 app.use(
   cors({
     origin: (origin, callback) => {
