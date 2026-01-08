@@ -93,6 +93,7 @@ model Logs_Alert {
   device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, onUpdate: NoAction, map: "Logs_Alert_ibfk_1")
 
   @@index([device_registrations_ID], map: "device_registrations_ID")
+  @@index([device_registrations_ID, created_at], map: "idx_device_created")
 }
 
 model OTP {

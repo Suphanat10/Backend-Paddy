@@ -32,4 +32,4 @@ services:
       - "8081:80"
 
 volumes:
-  mysql_data_test:
+  mysql_data:
