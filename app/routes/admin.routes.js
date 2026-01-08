@@ -1,6 +1,6 @@
 // import { requireAuthMiddleware } from "../middleware/authJwt.js";
 import { get_user ,  add_user  , delete_user , updateProfile , createFarmArea , updateFarmArea , createSubArea , updateSubArea , deleteSubArea , getFarmAreas , transferDevice , getData_Growth_Analysis , getDashboardOverview
-    , getDevices  , createDevice , deleteDevice , updateDevice , getDeviceRegistrations , GetData_devicebyID , GetdataLog  , GetdataLog_Logs_Alert   , update_system_settings , get_system_settings} from "../controllers/admin.controller.js";
+    , getDevices  , createDevice , deleteDevice , updateDevice , getDeviceRegistrations , GetData_devicebyID , GetdataLog  , GetdataLog_Logs_Alert   , update_system_settings , get_system_settings  , getdata_Pump  , ON_OFF_Pupm} from "../controllers/admin.controller.js";
 
 
 import { requireAuthMiddleware , isAdmin } from "../middleware/authJwt.js";
@@ -186,6 +186,24 @@ export default function (app) {
     getDashboardOverview
   );
  
+
+  app.get(
+    "/api/admin/getdata_Pump",
+    requireAuthMiddleware,
+    isAdmin,
+    getdata_Pump
+
+  );
+
+
+
+  app.post(
+    "/api/admin/on_off_pump",
+    requireAuthMiddleware,
+    isAdmin,
+    ON_OFF_Pupm
+
+  );
 
 
 

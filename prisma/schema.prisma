@@ -89,6 +89,7 @@ model Logs_Alert {
   device_registrations_ID Int
   alert_message           String               @db.Text
   created_at              DateTime?            @default(now()) @db.DateTime(0)
+  type                    String               @db.VarChar(100)
   device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, onUpdate: NoAction, map: "Logs_Alert_ibfk_1")
 
   @@index([device_registrations_ID], map: "device_registrations_ID")
@@ -123,6 +124,7 @@ model Sensor_Type {
   sensor_type_ID Int              @id @default(autoincrement())
   name           String           @db.VarChar(100)
   description    String?          @db.VarChar(255)
+  key            String           @db.VarChar(10)
   Permanent_Data Permanent_Data[]
 }
 

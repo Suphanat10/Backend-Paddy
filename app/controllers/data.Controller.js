@@ -379,7 +379,8 @@ export const getData_dashboard = async (req, res) => {
         Device: true,
         Area: {
           include: {
-            Farm: true   // ✔ ดึงฟาร์มผ่าน Area (ถูกต้อง)
+            Farm: true,
+            Pump: true
           }
         },
         Account: true
@@ -390,28 +391,30 @@ export const getData_dashboard = async (req, res) => {
       return res.status(404).json({ message: "ไม่พบอุปกรณ์ในระบบ" });
     }
 
+    console.log(data);
+
     const response = data.map(item => ({
-      // ข้อมูลอุปกรณ์
-      device_id: item.device_ID,
-      device_code: item.Device.device_code,
-   
-      registered_at: item.registered_at,
+  // ข้อมูลเดิม...
+  device_id: item.device_ID,
+  device_code: item.Device.device_code,
+  registered_at: item.registered_at,
 
-      // ข้อมูลพื้นที่เพาะปลูก (Area)
-      area_id: item.Area?.area_id ?? null,
-      area_name: item.Area?.area_name ?? null,
+  area_id: item.Area?.area_id ?? null,
+  area_name: item.Area?.area_name ?? null,
 
-      // ข้อมูลฟาร์ม (Farm)
-      farm_id: item.Area?.Farm?.farm_id ?? null,
-      farm_name: item.Area?.Farm?.farm_name ?? null,
-      farm_location: item.Area?.Farm?.location ?? null,
+  farm_id: item.Area?.Farm?.farm_id ?? null,
+  farm_name: item.Area?.Farm?.farm_name ?? null,
 
-      // เจ้าของอุปกรณ์ (Account)
-      owner_id: item.Account?.user_ID ?? null,
-      owner_name: `${item.Account?.first_name ?? ""} ${item.Account?.last_name ?? ""}`,
-      owner_email: item.Account?.email ?? null
-    }));
+  owner_id: item.Account?.user_ID ?? null,
+  owner_name: `${item.Account?.first_name ?? ""} ${item.Account?.last_name ?? ""}`,
 
+  // --- ปรับแก้ส่วน Pump (ดึงตัวแรก [0]) ---
+  // สังเกตการใช้เครื่องหมาย ? เพื่อกัน Error กรณี Array ว่าง
+  pump_id: item.Area?.Pump?.[0]?.pump_ID ?? null, 
+  pump_name: item.Area?.Pump?.[0]?.pump_name ?? null,
+
+  status: item.Area?.Pump?.[0]?.status ?? null,
+}));
     return res.status(200).json(response);
 
   } catch (error) {
@@ -550,3 +553,5 @@ export const getdata_Pump = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+

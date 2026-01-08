@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
-import { sendSettingsToDevice } from "../websocket/socketHandler.js";
+import { sendDeviceCommand_disconnect,sendDeviceCommand_PUMP_OFF_ON  } from "../mqtt/mqtt.js";
+import { mqttClient } from "../mqtt/mqtt.js";
 // -----------------------------------------------------การจัดการพื้นที่ฟาร์ม-------------------------------------------------------------------
 
 
@@ -519,20 +520,8 @@ export const transferDevice = async (req, res) => {
       }
     });
 
+    sendDeviceCommand_disconnect(mqttClient, device.device_code);
 
-      
-      const stopPayload = {
-        message : "Stop the connection.",
-        connectDevice: false,
-        type: "STOP_CONNECTION",
-      };
-
-      const id_code = device.device_code;
-
-      const sent = sendSettingsToDevice(id_code, stopPayload);
-      
-      if(sent) console.log(`Sent STOP signal to ${id_code}`);
-    
 
     return res.status(200).json({
       message: "ย้ายอุปกรณ์สำเร็จ",
@@ -597,20 +586,9 @@ export const deleteDevice = async (req, res) => {
       where: { device_ID: device.device_ID }
     });
 
-    // 5) สั่ง ESP32 หยุดการส่งข้อมูล
-    const stopPayload = {
-      message : "Stop the connection.",
-      connectDevice: false,
-      type: "STOP_CONNECTION",
-    };
+     
 
-    const id_code = device.device_code;
-
-    const sent = sendSettingsToDevice(id_code, stopPayload);
-    
-    if(sent) {
-      console.log(`Sent STOP signal to ${id_code}`);
-    }
+      sendDeviceCommand_disconnect(mqttClient, device_code);
 
     return res.status(200).json({
       message: "ลบข้อมูลที่เกี่ยวข้องกับอุปกรณ์สำเร็จ และหยุดการทำงานของอุปกรณ์แล้ว"
@@ -618,6 +596,64 @@ export const deleteDevice = async (req, res) => {
 
   } catch (error) {
     console.error("Error deleteDevice:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const  ON_OFF_Pupm  = async (req, res) => {
+  try {
+    const { pump_ID  , command} = req.body;
+
+    if (!pump_ID) {
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    }
+
+    if (!command) {
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    }
+
+    const pump = await prisma.Pump.findFirst({
+      where: { pump_ID }
+    });
+
+    if (!pump) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
+    const registration = await prisma.device_registrations.findFirst({
+      where: { user_ID: pump.user_ID }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    }
+
+    const device_code =  await prisma.device.findFirst({
+      where: { device_ID: registration.device_ID }
+
+    });
+
+      const mac_address = pump.mac_address;
+
+    if(command === "OFF"){
+      sendDeviceCommand_PUMP_OFF_ON(mqttClient , mac_address, "OFF");
+    }else if(command === "ON"){
+      sendDeviceCommand_PUMP_OFF_ON(mqttClient , mac_address, "ON");
+    }
+
+    await prisma.Pump.update({
+      where: { pump_ID },
+      data: { status: command },
+    });
+
+    return res.status(200).json({
+      message: "สั่งอุปกรณ์สำเร็จ"
+    });
+
+
+  } catch (error) {
+    console.error("Error ON_OFF_Pupm:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

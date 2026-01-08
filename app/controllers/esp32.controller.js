@@ -33,14 +33,11 @@ export const generateDeviceToken = async (req, res) => {
   );
 
   return res.status(200).json({ token });
-
    } catch (error) {
       console.error("Error connecting device:", error);
       return res.status(500).json({ message: "Internal server error" });
    }
 };
-
-
 
 export const connectDevice = async (req, res) => {
    try {
@@ -120,7 +117,7 @@ export const openPump = async (req, res) => {
 };
 
 
- export const  checkPump = async (req, res) => {
+ export const checkPump = async (req, res) => {
    try {
       console.log(req.body);
       const { reg_code , pump_name  , area_id  } = req.body;

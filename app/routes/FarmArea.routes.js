@@ -1,5 +1,5 @@
 import {  getFarmAreas , createFarmArea , updateFarmArea , deleteFarmArea , createSubArea , deleteSubArea , updateSubArea , registerDeviceToFarmArea , transferDevice
-   , deleteDevice
+   , deleteDevice , ON_OFF_Pupm
  } from "../controllers/FarmArea.Controller.js";
 import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
@@ -75,6 +75,13 @@ export default function (app) {
     "/api/delete-device",
     requireAuthMiddleware,
     deleteDevice
+  );
+
+
+  app.post(
+    "/api/on-off-pump",
+    requireAuthMiddleware,
+    ON_OFF_Pupm
   );
 
  
