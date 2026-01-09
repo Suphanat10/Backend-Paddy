@@ -152,6 +152,7 @@ import { checkAlerts } from "./checkAlerts.js";
 import { prisma } from "../../lib/prisma.js";
 
 const clients = new Map(); // device_code => socket
+const GSM_TIMEOUT = 3 * 60 * 1000; // 3 นาที (เหมาะกับ GSM)
 
 /* ====================================================
    START TCP SERVER
@@ -173,7 +174,7 @@ export function startTCPServer(io) {
       socket._buffer += raw.toString();
       socket.lastSeen = Date.now();
 
-      // ป้องกัน buffer ค้าง
+      // ป้องกัน buffer overflow
       if (socket._buffer.length > 8192) {
         console.log("🚨 TCP buffer overflow");
         socket.destroy();
@@ -228,6 +229,7 @@ export function startTCPServer(io) {
     }
 
     try {
+      socket.lastSeen = Date.now(); // 🔴 สำคัญ
       socket.write(JSON.stringify(obj) + "\n");
       console.log(`📤 Sent to ${device_code}:`, obj);
       return true;
@@ -285,7 +287,10 @@ async function handlePayload(payload, socket, io) {
 
     if (clients.has(device_code)) {
       const old = clients.get(device_code);
-      if (old !== socket) old.destroy();
+      if (old !== socket) {
+        old.end();
+        setTimeout(() => old.destroy(), 3000); // soft close
+      }
     }
 
     clients.set(device_code, socket);
@@ -348,14 +353,18 @@ async function handlePayload(payload, socket, io) {
 }
 
 /* ====================================================
-   TIMEOUT CHECK (KILL DEAD GSM SOCKET)
+   GSM TIMEOUT CHECK (SOFT CLOSE)
 ==================================================== */
 setInterval(() => {
   for (const [device, socket] of clients.entries()) {
-    if (Date.now() - socket.lastSeen > 60000) {
-      console.log(`⏱ Timeout device: ${device}`);
-      socket.destroy();
-      clients.delete(device);
+    if (Date.now() - socket.lastSeen > GSM_TIMEOUT) {
+      console.log(`⏱ Soft close GSM device: ${device}`);
+
+      socket.end();
+      setTimeout(() => {
+        if (!socket.destroyed) socket.destroy();
+        clients.delete(device);
+      }, 5000);
     }
   }
 }, 60000);
