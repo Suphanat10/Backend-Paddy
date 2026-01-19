@@ -43,7 +43,6 @@ jobs:
           docker compose down || true
 
           echo "🛢️ Build & start containers"
-          export COMPOSE_PROJECT_NAME=backend-paddy
           docker compose up -d --build --force-recreate
 
           echo "🧬 Run Prisma migrate (IMPORTANT)"
