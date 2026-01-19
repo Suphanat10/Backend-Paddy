@@ -13,7 +13,7 @@ import dataRoutes from "./app/routes/data.routes.js";
 import adminRoutes from "./app/routes/admin.routes.js";
 import esp32Routes from "./app/routes/esp32.routes.js";
 
-import { mqttClient } from "./app/mqtt/mqtt.js"; // 👈 แนะนำเปลี่ยนชื่อให้ชัด
+import { mqttClient } from "./app/mqtt/mqtt.js"; 
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -62,7 +62,7 @@ io.on("connection", (socket) => {
 
 /* ---------- Error Middleware ---------- */
 app.use((err, req, res, next) => {
-  console.error("🔥 Express Error:", err);
+  console.error("Express Error:", err);
   res.status(500).json({ message: "Internal server error" });
 });
 
@@ -71,33 +71,6 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
-/* ---------- SAFE EXIT (สำคัญมาก) ---------- */
-const shutdown = async () => {
-  console.log("Shutting down server...");
-
-  try {
-    await mqttClient?.end?.();
-    console.log("✅ MQTT closed");
-  } catch (e) {
-    console.error("MQTT close error", e);
-  }
-
-  server.close(() => {
-    console.log( "HTTP server closed");
-    process.exit(0);
-  });
-};
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-});
 
 
 
