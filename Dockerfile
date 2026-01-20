@@ -22,9 +22,13 @@
 # CMD ["node", "server.js"]
 
 
+
 FROM node:22
 
 WORKDIR /usr/src/app
+
+# 🔥 ติดตั้ง netcat (nc) สำหรับ start.sh
+RUN apt-get update && apt-get install -y netcat-openbsd
 
 COPY package*.json ./
 RUN npm install
