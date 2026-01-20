@@ -1,35 +1,85 @@
+# services:
+#   node-server:
+#     build: .
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       DATABASE_URL: ${DATABASE_URL}
+#       PORT: 8000
+#     depends_on:
+#       - db
+
+#   db:
+#     image: mysql:8.0
+#     environment:
+#       MYSQL_ROOT_PASSWORD: root
+#       MYSQL_DATABASE: Project-01
+#       MYSQL_USER: paddy_admin
+#       MYSQL_PASSWORD: Paddy@2025_Secure!
+#     ports:
+#       - "3306:3306"
+#     volumes:
+#       - mysql_data_test:/var/lib/mysql
+
+#   phpmyadmin:
+#     image: phpmyadmin/phpmyadmin:latest
+#     environment:
+#       PMA_HOST: db
+#       PMA_PORT: 3306
+#       PMA_USER: root
+#       PMA_PASSWORD: root
+#     ports:
+#       - "8080:8080"
+
+# volumes:
+#   mysql_data:
+
+version: "3.9"
+
 services:
   node-server:
     build: .
+    container_name: backend-paddy-node
     ports:
-      - "8001:8000"
+      - "8000:8000" # เปิดเฉพาะ API
     environment:
-      DATABASE_URL: ${DATABASE_URL}
       PORT: 8000
+      DATABASE_URL: mysql://paddy_admin:Paddy@2025_Secure!@db:3306/Project-01
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: always
 
   db:
     image: mysql:8.0
+    container_name: backend-paddy-db
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: Project-01
       MYSQL_USER: paddy_admin
       MYSQL_PASSWORD: Paddy@2025_Secure!
-    ports:
-      - "3307:3306"
     volumes:
       - mysql_data_test:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    # ❌ ไม่ expose port 3306
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
+    container_name: backend-paddy-phpmyadmin
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
       PMA_USER: root
       PMA_PASSWORD: root
-    ports:
-      - "8081:80"
+    depends_on:
+      - db
+    restart: always
+    # ❌ ไม่ expose port 8080
 
 volumes:
   mysql_data_test:
