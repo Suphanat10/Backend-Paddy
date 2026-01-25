@@ -51,13 +51,13 @@ const passwordIsValid = bcrypt.compareSync(
     });
 
     res.status(200)
-.cookie("accessToken", token, {
-  httpOnly: true,
-  secure: true,        // ❗ จำเป็น
-  sameSite: "none",    // ❗ จำเป็นสำหรับ cross-site
-  path: "/",
-  maxAge: 86400 * 1000,
-})
+  .cookie("accessToken", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax", // ⭐ แนะนำ
+    path: "/",       // ⭐ แนะนำ
+    maxAge: 86400 * 1000,
+  })
   .json({
     message: "เข้าสู่ระบบสำเร็จ",
     user: {
@@ -148,13 +148,14 @@ export const lineOA_login = async (req, res) => {
       { expiresIn: SEVEN_DAYS }
     );
 
+      await changeRichMenu(secureUserId, "richmenu-15b799507b0c124530a9ba2143d6e03b");
     // 5️⃣ set cookie
     res
       .status(200)
       .cookie("accessToken", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+  secure: true,        // ❗ ห้าม false
+  sameSite: "none",    // ❗ สำคัญสุด
         path: "/",
         maxAge: SEVEN_DAYS * 1000,
       })
@@ -170,7 +171,7 @@ export const lineOA_login = async (req, res) => {
         },
       });
 
-     await changeRichMenu(secureUserId, "richmenu-15b799507b0c124530a9ba2143d6e03b");
+   
 
   } catch (error) {
     console.error("LINE OA Login Error:", error);
