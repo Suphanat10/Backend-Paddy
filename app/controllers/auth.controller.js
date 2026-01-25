@@ -5,7 +5,8 @@ import jwt from "jsonwebtoken";
 import axios from "axios";
 import config from "../config/auth.config.js";
 import { Resend } from "resend";
-import e from "express";
+
+const LINE_RICHMENU_LOGIN_ID = "I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU="
 
 export const login = async (req, res) => {
   try {
@@ -79,97 +80,73 @@ const passwordIsValid = bcrypt.compareSync(
 
 export const lineOA_login = async (req, res) => {
   try {
-    const { accessToken } = req.body;
+    const { userId, displayName} = req.body;
 
-    if (!accessToken) {
-      return res.status(400).json({ message: "Access Token is required" });
+    
+
+    if (!userId) {
+      return res.status(400).json({ message: "ไม่พบ userId จาก LINE" });
     }
-
-    const tokenLine = accessToken.replace("Bearer ", "");
-
-    let lineProfile;
-    try {
-      const response = await axios.get("https://api.line.me/v2/profile", {
-        headers: {
-          Authorization: `Bearer ${tokenLine}`,
-        },
-      });
-      lineProfile = response.data;
-    } catch (err) {
-      return res.status(401).json({
-        message: "LINE Token ไม่ถูกต้องหรือหมดอายุ",
-      });
-    }
-
-    const lineUserId = lineProfile.userId;
-
 
     let user = await prisma.Account.findFirst({
-      where: { user_id_line: lineUserId },
+      where: { user_id_line: userId },
     });
 
-    // 3️⃣ ถ้าไม่เจอ → สมัครอัตโนมัติ
     if (!user) {
       user = await prisma.Account.create({
         data: {
-          user_id_line: lineUserId,
-          first_name: lineProfile.displayName,
-          last_name: "",
-          email: null,
-          phone_number: "",
+          user_id_line: userId,
+          first_name: displayName || "LINE User",
           position: "Agriculture",
         },
       });
     }
 
-    // 4️⃣ ออก JWT
-    const SEVEN_DAYS = 7 * 24 * 60 * 60; 
-
     const token = jwt.sign(
       { id: user.user_ID },
       config.secret,
-      { expiresIn: SEVEN_DAYS }
+      { expiresIn: "1d" }
     );
-
-    // 5️⃣ set cookie
     res
       .status(200)
       .cookie("accessToken", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        path: "/",
-        maxAge: SEVEN_DAYS * 1000,
+        maxAge: 86400000, 
       })
       .json({
-        message: "เข้าสู่ระบบด้วย LINE OA สำเร็จ",
+        message: "เข้าสู่ระบบสำเร็จ",
         user: {
           id: user.user_ID,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          position: user.position,
-          pictureUrl: lineProfile.pictureUrl,
-          isNewUser: !user ? true : false,
+          displayName: user.display_name,
         },
       });
 
   } catch (error) {
-    console.error("LINE OA Login Error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error(error);
+    res.status(500).json({ message: "เกิดข้อผิดพลาดในระบบ" });
   }
 };
 
 
 
+ const changeRichMenu = async (userId, richMenuId) => {
+  await axios.post(
+    `https://api.line.me/v2/bot/user/${userId}/richmenu/${richMenuId}`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+      },
+    }
+  );
+};
+
+
 export const line_login = async (req, res) => {
   try {
     const { userId , accessToken } = req.body;
-
-
-
-    console.log("Access Token:", accessToken);
-    console.log("User ID:", userId);
-
 
     if (!accessToken ) {
       return res.status(400).json({ message: "Access Token is required" });
@@ -218,7 +195,15 @@ export const line_login = async (req, res) => {
     const token = jwt.sign({ id: user.user_ID }, config.secret, {
       expiresIn: 86400, 
     });
-
+    
+     try {
+  await changeRichMenu(
+    secureUserId,
+    LINE_RICHMENU_LOGIN_ID 
+  );
+} catch (e) {
+  console.error("Change rich menu failed:", e.message);
+}
 
      res.status(200).cookie("accessToken", token, {
       httpOnly: true,
@@ -238,7 +223,6 @@ export const line_login = async (req, res) => {
           pictureUrl: lineProfile.pictureUrl 
         },
       });
-
   } catch (error) {
     console.error("Error signing in with LINE:", error);
     res.status(500).json({ message: "Internal server error" });
