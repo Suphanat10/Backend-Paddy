@@ -6,7 +6,6 @@ import axios from "axios";
 import config from "../config/auth.config.js";
 import { Resend } from "resend";
 
-const LINE_RICHMENU_LOGIN_ID = "I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU="
 
 export const login = async (req, res) => {
   try {
@@ -78,61 +77,11 @@ const passwordIsValid = bcrypt.compareSync(
 };
 
 
-export const lineOA_login = async (req, res) => {
-  try {
-    const { userId, displayName} = req.body;
-
-    
-
-    if (!userId) {
-      return res.status(400).json({ message: "ไม่พบ userId จาก LINE" });
-    }
-
-    let user = await prisma.Account.findFirst({
-      where: { user_id_line: userId },
-    });
-
-    if (!user) {
-      user = await prisma.Account.create({
-        data: {
-          user_id_line: userId,
-          first_name: displayName || "LINE User",
-          position: "Agriculture",
-        },
-      });
-    }
-
-    const token = jwt.sign(
-      { id: user.user_ID },
-      config.secret,
-      { expiresIn: "1d" }
-    );
-    res
-      .status(200)
-      .cookie("accessToken", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 86400000, 
-      })
-      .json({
-        message: "เข้าสู่ระบบสำเร็จ",
-        user: {
-          id: user.user_ID,
-          displayName: user.display_name,
-        },
-      });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "เกิดข้อผิดพลาดในระบบ" });
-  }
-};
 
 
 
- const changeRichMenu = async (userId, richMenuId) => {
-  await axios.post(
+export const changeRichMenu = async (userId, richMenuId) => {
+  return axios.post(
     `https://api.line.me/v2/bot/user/${userId}/richmenu/${richMenuId}`,
     {},
     {
@@ -142,6 +91,94 @@ export const lineOA_login = async (req, res) => {
     }
   );
 };
+
+
+
+export const lineOA_login = async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({ message: "Access Token is required" });
+    }
+
+    const tokenLine = accessToken.replace("Bearer ", "");
+
+    // 1️⃣ ดึง profile จาก LINE
+    let lineProfile;
+    try {
+      const response = await axios.get("https://api.line.me/v2/profile", {
+        headers: {
+          Authorization: `Bearer ${tokenLine}`,
+        },
+      });
+      lineProfile = response.data;
+    } catch (err) {
+      return res.status(401).json({
+        message: "LINE Token ไม่ถูกต้องหรือหมดอายุ",
+      });
+    }
+
+    const lineUserId = lineProfile.userId;
+
+    // 2️⃣ หา user ในระบบ
+    let user = await prisma.Account.findFirst({
+      where: { user_id_line: lineUserId },
+    });
+
+    // 3️⃣ ถ้าไม่เจอ → สมัครอัตโนมัติ
+    if (!user) {
+      user = await prisma.Account.create({
+        data: {
+          user_id_line: lineUserId,
+          first_name: lineProfile.displayName,
+          last_name: "",
+          email: null,
+          phone_number: "",
+          position: "Agriculture",
+        },
+      });
+    }
+
+    const SEVEN_DAYS = 7 * 24 * 60 * 60; 
+    // 4️⃣ ออก JWT
+    const token = jwt.sign(
+      { id: user.user_ID },
+      config.secret,
+      { expiresIn: SEVEN_DAYS }
+    );
+
+    // 5️⃣ set cookie
+    res
+      .status(200)
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: SEVEN_DAYS * 1000,
+      })
+      .json({
+        message: "เข้าสู่ระบบด้วย LINE OA สำเร็จ",
+        user: {
+          id: user.user_ID,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          position: user.position,
+          pictureUrl: lineProfile.pictureUrl,
+          isNewUser: !user ? true : false,
+        },
+      });
+
+     await changeRichMenu(secureUserId, "richmenu-15b799507b0c124530a9ba2143d6e03b");
+
+  } catch (error) {
+    console.error("LINE OA Login Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
 
 
 export const line_login = async (req, res) => {
@@ -196,14 +233,7 @@ export const line_login = async (req, res) => {
       expiresIn: 86400, 
     });
     
-     try {
-  await changeRichMenu(
-    secureUserId,
-    LINE_RICHMENU_LOGIN_ID 
-  );
-} catch (e) {
-  console.error("Change rich menu failed:", e.message);
-}
+ 
 
      res.status(200).cookie("accessToken", token, {
       httpOnly: true,
@@ -228,6 +258,12 @@ export const line_login = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+
+
+
+
 
 export const register = async (req, res) => {
   try {
@@ -556,6 +592,7 @@ export const VerifyOTP = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 
