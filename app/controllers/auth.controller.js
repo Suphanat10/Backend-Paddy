@@ -150,7 +150,7 @@ export const lineOA_login = async (req, res) => {
       { expiresIn: SEVEN_DAYS }
     );
 
-      await changeRichMenu(lineUserId, "richmenu-15b799507b0c124530a9ba2143d6e03b");
+      await changeRichMenu(lineUserId, "richmenu-840c27dea89fb22f36b9b168e0ea379d");
     // 5️⃣ set cookie
     res
       .status(200)
