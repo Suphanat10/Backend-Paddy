@@ -52,22 +52,35 @@ services:
     restart: always
 
   db:
-    image: mysql:8.0
-    container_name: backend-paddy-db
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: Project-01
-      MYSQL_USER: paddy_admin
-      MYSQL_PASSWORD: Paddy@2025_Secure!
-    volumes:
-      - mysql_data_test:/var/lib/mysql
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
-    # ❌ ไม่ expose port 3306
+  image: mysql:8.0
+  container_name: backend-paddy-db
+
+  command: >
+    --innodb-buffer-pool-size=128M --innodb-log-buffer-size=16M --max-connections=50 --table-open-cache=200 --tmp-table-size=32M --max-heap-table-size=32M --performance-schema=OFF
+
+  environment:
+    MYSQL_ROOT_PASSWORD: root
+    MYSQL_DATABASE: Project-01
+    MYSQL_USER: paddy_admin
+    MYSQL_PASSWORD: Paddy@2025_Secure!
+
+  volumes:
+    - mysql_data_test:/var/lib/mysql
+
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+
+  healthcheck:
+    test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot" ]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+  restart: always
+  # ❌ ไม่ expose port 3306
+
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
