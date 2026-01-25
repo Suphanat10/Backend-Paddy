@@ -51,13 +51,13 @@ const passwordIsValid = bcrypt.compareSync(
     });
 
     res.status(200)
-  .cookie("accessToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax", // ⭐ แนะนำ
-    path: "/",       // ⭐ แนะนำ
-    maxAge: 86400 * 1000,
-  })
+.cookie("accessToken", token, {
+  httpOnly: true,
+  secure: true,        // ❗ จำเป็น
+  sameSite: "none",    // ❗ จำเป็นสำหรับ cross-site
+  path: "/",
+  maxAge: 86400 * 1000,
+})
   .json({
     message: "เข้าสู่ระบบสำเร็จ",
     user: {
