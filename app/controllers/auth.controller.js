@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import axios from "axios";
 import config from "../config/auth.config.js";
 import { Resend } from "resend";
+import e from "express";
 
 export const login = async (req, res) => {
   try {
@@ -74,6 +75,91 @@ const passwordIsValid = bcrypt.compareSync(
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+export const lineOA_login = async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({ message: "Access Token is required" });
+    }
+
+    const tokenLine = accessToken.replace("Bearer ", "");
+
+    let lineProfile;
+    try {
+      const response = await axios.get("https://api.line.me/v2/profile", {
+        headers: {
+          Authorization: `Bearer ${tokenLine}`,
+        },
+      });
+      lineProfile = response.data;
+    } catch (err) {
+      return res.status(401).json({
+        message: "LINE Token ไม่ถูกต้องหรือหมดอายุ",
+      });
+    }
+
+    const lineUserId = lineProfile.userId;
+
+
+    let user = await prisma.Account.findFirst({
+      where: { user_id_line: lineUserId },
+    });
+
+    // 3️⃣ ถ้าไม่เจอ → สมัครอัตโนมัติ
+    if (!user) {
+      user = await prisma.Account.create({
+        data: {
+          user_id_line: lineUserId,
+          first_name: lineProfile.displayName,
+          last_name: "",
+          email: null,
+          phone_number: "",
+          position: "Agriculture",
+        },
+      });
+    }
+
+    // 4️⃣ ออก JWT
+    const SEVEN_DAYS = 7 * 24 * 60 * 60; 
+
+    const token = jwt.sign(
+      { id: user.user_ID },
+      config.secret,
+      { expiresIn: SEVEN_DAYS }
+    );
+
+    // 5️⃣ set cookie
+    res
+      .status(200)
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: SEVEN_DAYS * 1000,
+      })
+      .json({
+        message: "เข้าสู่ระบบด้วย LINE OA สำเร็จ",
+        user: {
+          id: user.user_ID,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          position: user.position,
+          pictureUrl: lineProfile.pictureUrl,
+          isNewUser: !user ? true : false,
+        },
+      });
+
+  } catch (error) {
+    console.error("LINE OA Login Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
 
 export const line_login = async (req, res) => {
   try {
@@ -241,7 +327,6 @@ export const line_reg = async (req, res) => {
         },
       });
       lineProfile = response.data;
-      console.log(lineProfile);
     } catch (lineError) {
       console.error("LINE Token Verification Failed:", lineError.message);
       return res.status(401).json({ message: "LINE Token ไม่ถูกต้องหรือหมดอายุ" });
@@ -261,21 +346,16 @@ export const line_reg = async (req, res) => {
       return res.status(400).json({ message: "บัญชี LINE นี้ถูกลงทะเบียนไว้แล้ว กรุณาเข้าสู่ระบบ" });
     }
 
-
-    
-    // สร้าง Username ไม่ให้ซ้ำ
-    const generatedUsername = `line_${secureUserId.substring(0, 8)}`;
-
     // ==========================================
     // 5. บันทึกลง Database
     // ==========================================
     const user = await prisma.Account.create({
       data: {
         user_id_line: secureUserId,
-        first_name: first_name || lineProfile.displayName, // ถ้าไม่กรอก ใช้ชื่อไลน์
+        first_name: first_name || lineProfile.displayName, 
         last_name: last_name || "",
-        email: email || null, // LINE อาจจะไม่ส่ง email มาให้ถ้า user ไม่ allow
-        phone_number: phone_number || "", // ✅ แก้ typo (ลบ underscore ออก)
+        email: email || null, 
+        phone_number: phone_number || "", 
         position: "Agriculture",
       
       }

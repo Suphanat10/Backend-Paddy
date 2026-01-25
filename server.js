@@ -67,9 +67,10 @@ app.use((err, req, res, next) => {
 });
 
 /* ---------- Server ---------- */
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(8000, "0.0.0.0", () => {
+  console.log("Server running on 0.0.0.0:8000");
 });
+
 
 
 
