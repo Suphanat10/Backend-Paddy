@@ -23,20 +23,46 @@
 
 
 
-FROM node:22
+# FROM node:22
+
+# WORKDIR /usr/src/app
+
+# # 🔥 ติดตั้ง netcat (nc) สำหรับ start.sh
+# RUN apt-get update && apt-get install -y netcat-openbsd
+
+# COPY package*.json ./
+# RUN npm install
+
+# COPY . .
+
+# RUN npx prisma generate
+
+# EXPOSE 8000
+
+# CMD ["sh", "start.sh"]
+
+
+# ---------- Base ----------
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-# 🔥 ติดตั้ง netcat (nc) สำหรับ start.sh
-RUN apt-get update && apt-get install -y netcat-openbsd
+# ติดตั้ง netcat (เบามากใน alpine)
+RUN apk add --no-cache netcat-openbsd
 
+# คัดลอก package ก่อน (cache-friendly)
 COPY package*.json ./
-RUN npm install
 
+# ติดตั้งเฉพาะ production deps
+RUN npm install --omit=dev
+
+# คัดลอก source
 COPY . .
 
+# Prisma generate
 RUN npx prisma generate
 
 EXPOSE 8000
 
 CMD ["sh", "start.sh"]
+
