@@ -150,18 +150,18 @@ services:
     restart: always
     # ❌ ไม่ expose port 3306
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    container_name: backend-paddy-phpmyadmin
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: root
-    depends_on:
-      - db
-    restart: always
-    # ❌ ไม่ expose port
+    # phpmyadmin:
+    #   image: phpmyadmin/phpmyadmin:latest
+    #   container_name: backend-paddy-phpmyadmin
+    #   environment:
+    #     PMA_HOST: db
+    #     PMA_PORT: 3306
+    #     PMA_USER: root
+    #     PMA_PASSWORD: root
+    #   depends_on:
+    #     - db
+    #   restart: always
+    #   # ❌ ไม่ expose port
 
 volumes:
   mysql_data_test:
