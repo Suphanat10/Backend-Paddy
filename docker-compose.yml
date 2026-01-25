@@ -45,6 +45,7 @@ services:
     environment:
       PORT: 8000
       DATABASE_URL: mysql://paddy_admin:Paddy@2025_Secure!@db:3306/Project-01
+      LINE_CHANNEL_ACCESS_TOKEN: I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU=
     depends_on:
       db:
         condition: service_healthy
