@@ -31,13 +31,13 @@ export default function (app) {
 
   app.get(
     "/api/data/personal",
-    // requireAuthMiddleware,
+    requireAuthMiddleware,
     getdataPersonal
   );
 
   app.get(
     "/api/data/device",
-    // requireAuthMiddleware,
+     requireAuthMiddleware,
     getdata_Device
   );
 

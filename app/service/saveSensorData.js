@@ -42,7 +42,7 @@ import { prisma } from "../../lib/prisma.js";
     });
 
 
-    let nextSaveTime = todayReference.getTime();  //แปลงวันที่ให้เป็นตัวเลข
+    let nextSaveTime = todayReference.getTime();  
 
 
     if (lastLog) {

@@ -1,14 +1,15 @@
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+// import { PrismaClient } from "@prisma/client";
 import config from "../config/auth.config.js";
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
+
+import { prisma } from "../../lib/prisma.js";
+import { log } from "console";
 
 export const requireAuthMiddleware = (req, res, next) => {
 
   const token = req.cookies?.accessToken;
-
-  console.log("Token from cookie:", token);
 
   if (!token) {
     return res.status(401).json({ message: "Not authenticated" });
@@ -19,7 +20,6 @@ export const requireAuthMiddleware = (req, res, next) => {
 
     req.user = decoded;
 
-    console.log("Token verified (cookie):", decoded);
     next();
   } catch (err) {
     console.error("Invalid token:", err.message);
@@ -120,5 +120,25 @@ export const isAdmin = async (req, res, next) => {
       message: "Internal Server Error",
       details: error.message,
     });
+  }
+};
+
+
+export const SaveLogs = (log_description) => async (req, res, next) => {
+  next();
+
+  try {
+
+     const userId = req.user?.id;   
+     
+    await prisma.Logs.create({
+      data: {
+        user_ID: userId ? parseInt(userId) : null, 
+        action: log_description,
+        ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
+      },
+    });
+  } catch (error) {
+    console.error("❌ SaveLogs Error:", error.message);
   }
 };

@@ -1,40 +1,23 @@
-# FROM node:22
-
-# # กำหนด directory เริ่มต้น
-# WORKDIR /usr/src/app
-
-# # copy package.json และ package-lock.json (ถ้ามี)
-# COPY package*.json ./
-
-# # ลง dependency
-# RUN npm install
-
-# # copy ทุกไฟล์ (รวม prisma folder, server.js, lib/ ฯลฯ)
-# COPY . .
-
-# # generate Prisma client
-# RUN npx prisma generate
-
-# # ปล่อย port
-# EXPOSE 8000
-
-# # รัน server
-# CMD ["node", "server.js"]
 
 
-
-# FROM node:22
+# # ---------- Base ----------
+# FROM node:20-alpine
 
 # WORKDIR /usr/src/app
 
-# # 🔥 ติดตั้ง netcat (nc) สำหรับ start.sh
-# RUN apt-get update && apt-get install -y netcat-openbsd
+# # ติดตั้ง netcat (เบามากใน alpine)
+# RUN apk add --no-cache netcat-openbsd
 
+# # คัดลอก package ก่อน (cache-friendly)
 # COPY package*.json ./
-# RUN npm install
 
+# # ติดตั้งเฉพาะ production deps
+# RUN npm install --omit=dev
+
+# # คัดลอก source
 # COPY . .
 
+# # Prisma generate
 # RUN npx prisma generate
 
 # EXPOSE 8000
@@ -47,13 +30,16 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-# ติดตั้ง netcat (เบามากใน alpine)
+# ติดตั้ง netcat สำหรับรอ DB
 RUN apk add --no-cache netcat-openbsd
+
+# สร้าง user ไม่ใช้ root
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # คัดลอก package ก่อน (cache-friendly)
 COPY package*.json ./
 
-# ติดตั้งเฉพาะ production deps
+# ติดตั้ง production deps
 RUN npm install --omit=dev
 
 # คัดลอก source
@@ -62,7 +48,12 @@ COPY . .
 # Prisma generate
 RUN npx prisma generate
 
+# ให้สิทธิไฟล์ทั้งหมดกับ appuser
+RUN chown -R appuser:appgroup /usr/src/app
+
+# เปลี่ยนไปใช้ user ที่ไม่ใช่ root
+USER appuser
+
 EXPOSE 8000
 
 CMD ["sh", "start.sh"]
-

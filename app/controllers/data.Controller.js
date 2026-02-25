@@ -443,12 +443,17 @@ export const getdata_Growth_Analysis = async (req, res) => {
         Growth_Analysis: {
           orderBy: { created_at: "desc" }, 
         },
+        Disease_Analysis:{
+          orderBy: { created_at: "desc" }, 
+        }
       },
     });
 
-    if (!data || data.length === 0) {
-      return res.status(404).json({ message: "ไม่พบอุปกรณ์ในระบบ" });
-    }
+ 
+
+    // if (!data || data.length === 0) {
+    //   return res.status(404).json({ message: "ไม่พบอุปกรณ์ในระบบ" });
+    // }
 
 
     const response = data.map((item) => ({
@@ -472,6 +477,17 @@ export const getdata_Growth_Analysis = async (req, res) => {
         analysis_id: ga.analysis_id,
         growth_stage: ga.growth_stage,
         image_url: ga.image_url,
+        confidence:ga.confidence,
+        advice:ga.advice,
+        created_at: ga.created_at,
+      })),
+
+      Disease_Analysis: item.Disease_Analysis.map((ga) => ({
+        disease_id: ga.disease_id,
+        disease_name: ga.disease_name,
+        image_url: ga.image_url,
+        confidence:ga.confidence,
+        advice:ga.advice,
         created_at: ga.created_at,
       })),
     }));

@@ -1,7 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs"; 
-import { sendDeviceCommand_disconnect,sendDeviceCommand_PUMP_OFF_ON  } from "../mqtt/mqtt.js";
-import { mqttClient } from "../mqtt/mqtt.js";
+import { sendDeviceCommand_disconnect,sendDeviceCommand_PUMP_OFF_ON  } from "../service/mqtt.js";
+import { mqttClient } from "../service/mqtt.js";
 
 
 

@@ -1,4 +1,5 @@
 import { login, register  , RequestOTP , line_login , line_reg  ,  logout  ,   login_admin  , VerifyOTP  , verifyOtpAndResetPassword , lineOA_login } from "../controllers/auth.controller.js";
+import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
 export default function (app) {
   app.use(function (req, res, next) {
@@ -11,11 +12,11 @@ export default function (app) {
 
   app.post("/api/auth/line-oa-login", lineOA_login);
 
-  app.post("/api/auth/login", login);
-  app.post("/api/auth/line-login", line_login);
+  app.post("/api/auth/login" , login);
+  app.post("/api/auth/line-login" ,line_login);
   app.post("/api/auth/line-register", line_reg);
   app.post("/api/auth/register", register);
-  app.post("/api/auth/logout", logout);
+  app.post("/api/auth/logout" , requireAuthMiddleware , logout);
   app.post("/api/auth/verify-otp", VerifyOTP);
   
 

@@ -41,7 +41,7 @@
 #     build: .
 #     container_name: backend-paddy-node
 #     ports:
-#       - "8000:8000" # เปิดเฉพาะ API
+#       - "8000:8000"
 #     environment:
 #       PORT: 8000
 #       DATABASE_URL: mysql://paddy_admin:Paddy@2025_Secure!@db:3306/Project-01
@@ -51,18 +51,12 @@
 #         condition: service_healthy
 #     restart: always
 
-# db:
+#   db:
 #     image: mysql:8.0
 #     container_name: backend-paddy-db
 
 #     command: >
-#       --innodb-buffer-pool-size=128M
-#       --innodb-log-buffer-size=16M
-#       --max-connections=50
-#       --table-open-cache=200
-#       --tmp-table-size=32M
-#       --max-heap-table-size=32M
-#       --performance-schema=OFF
+#       --innodb-buffer-pool-size=128M --innodb-log-buffer-size=16M --max-connections=50 --table-open-cache=200 --tmp-table-size=32M --max-heap-table-size=32M --performance-schema=OFF
 
 #     environment:
 #       MYSQL_ROOT_PASSWORD: root
@@ -79,89 +73,164 @@
 #           memory: 512M
 
 #     healthcheck:
-#       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+#       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot" ]
 #       interval: 10s
 #       timeout: 5s
 #       retries: 5
 
 #     restart: always
-#     # ❌ ไม่ expose port 3306
-
-#   phpmyadmin:
-#     image: phpmyadmin/phpmyadmin:latest
-#     container_name: backend-paddy-phpmyadmin
-#     environment:
-#       PMA_HOST: db
-#       PMA_PORT: 3306
-#       PMA_USER: root
-#       PMA_PASSWORD: root
-#     depends_on:
-#       - db
-#     restart: always
-#     # ❌ ไม่ expose port 8080
+#     ports:
+#       - "3306:3306"
 
 # volumes:
-#   mysql_data_test:
+#   mysql_production_data:
+
+# services:
+#   node-server:
+#     build: .
+#     container_name: backend-paddy-node
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       NODE_ENV: production
+#       PORT: 8000
+#       DATABASE_URL: mysql://paddy_admin:Paddy@2025_Secure!@db:3306/Project-01
+#       LINE_CHANNEL_ACCESS_TOKEN: I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU=
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     restart: unless-stopped
+
+#   db:
+#     image: mysql:8.0
+#     container_name: backend-paddy-db
+#     # ปรับจูนค่าประสิทธิภาพสำหรับ Production
+#     command: >
+#       --innodb-buffer-pool-size=256M  --innodb-log-file-size=64M --max-connections=150 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --skip-log-bin
+#     environment:
+#       # แนะนำให้เปลี่ยนรหัส root จาก 'root' เป็นรหัสที่ยากขึ้นใน production
+#       MYSQL_ROOT_PASSWORD: Paddy@2025_Secure!
+#       MYSQL_DATABASE: Project-01
+#       MYSQL_USER: paddy_admin
+#       MYSQL_PASSWORD: Paddy@2025_Secure!
+#     volumes:
+#       - mysql_production_data:/var/lib/mysql # แก้ไขให้ตรงกับ volumes ด้านล่าง
+#     ports:
+#       - "3306:3306" # เปิดให้ remote เข้าดูได้ตามที่คุณต้องการ
+#     networks:
+#       - paddy-net
+#     deploy:
+#       resources:
+#         limits:
+#           memory: 1G # เพิ่ม RAM ให้ DB ในระดับ Production
+#     healthcheck:
+#       # แก้ไขรหัสผ่านใน healthcheck ให้ตรงกับ MYSQL_ROOT_PASSWORD
+#       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pPaddy@2025_Secure!" ]
+#       interval: 15s
+#       timeout: 5s
+#       retries: 3
+#     restart: unless-stopped
+# networks:
+#   paddy-net:
+#     driver: bridge
+
+# volumes:
+#   mysql_production_data: # ประกาศชื่อ volume ให้ถูกต้อง
+
+# services:
+#   node-server:
+#     build: .
+#     container_name: backend-paddy-node
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       NODE_ENV: production
+#       PORT: 8000
+#       DATABASE_URL: mysql://paddy_admin:Paddy%402025_Secure%21@db:3306/Project-01
+#       LINE_CHANNEL_ACCESS_TOKEN: I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU=
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     networks:
+#       - paddy-net
+#     restart: unless-stopped
+
+#   db:
+#     image: mysql:8.0
+#     container_name: backend-paddy-db
+#     command: >
+#       --innodb-buffer-pool-size=256M --innodb-log-file-size=64M --max-connections=150 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --skip-log-bin
+#     environment:
+#       MYSQL_ROOT_PASSWORD: Paddy@2025_Secure!
+#       MYSQL_DATABASE: Project-01
+#       MYSQL_USER: paddy_admin
+#       MYSQL_PASSWORD: Paddy@2025_Secure!
+#     volumes:
+#       - mysql_production_data:/var/lib/mysql
+#     ports:
+#       - "3306:3306"
+#     networks:
+#       - paddy-net
+#     healthcheck:
+#       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pPaddy@2025_Secure!" ]
+#       interval: 15s
+#       timeout: 5s
+#       retries: 3
+#     restart: unless-stopped
+
+# networks:
+#   paddy-net:
+#     driver: bridge
+
+# volumes:
+#   mysql_production_data:
 
 version: "3.9"
 
 services:
-  node-server:
-    build: .
+  backend:
+    image: suphanat10/paddy-backend:latest
     container_name: backend-paddy-node
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8001"
     environment:
+      NODE_ENV: production
       PORT: 8000
-      DATABASE_URL: mysql://paddy_admin:Paddy@2025_Secure!@db:3306/Project-01
-      LINE_CHANNEL_ACCESS_TOKEN: I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU=
+      DATABASE_URL: mysql://paddy_admin:Paddy%402025_Secure%21@db:3306/Project-01
+      LINE_CHANNEL_ACCESS_TOKEN: "I5+rX5K9HAQGunE9QSIFl+OBvZMhQykJi28/3CXKwiZaSyC/UjQkshPb5VED9xgtO9BWRc23lUW4Fa/i4cAi3vAcy4usxjztpWmxIkZy6YmHeIBDLFnvpajy8t34KbMuDZ52AuC2tHWZ3HrXVEgwVwdB04t89/1O/w1cDnyilFU="
     depends_on:
       db:
         condition: service_healthy
-    restart: always
+    networks:
+      - paddy-net
 
   db:
     image: mysql:8.0
     container_name: backend-paddy-db
-
+    restart: unless-stopped
     command: >
-      --innodb-buffer-pool-size=128M --innodb-log-buffer-size=16M --max-connections=50 --table-open-cache=200 --tmp-table-size=32M --max-heap-table-size=32M --performance-schema=OFF
-
+      --innodb-buffer-pool-size=256M --innodb-log-file-size=64M --max-connections=150 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --skip-log-bin
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: Paddy@2025_Secure!
       MYSQL_DATABASE: Project-01
       MYSQL_USER: paddy_admin
       MYSQL_PASSWORD: Paddy@2025_Secure!
-
+    ports:
+      - "3306:3306"
     volumes:
-      - mysql_data_test:/var/lib/mysql
-
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
+      - mysql_production_data:/var/lib/mysql
+    networks:
+      - paddy-net
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot" ]
-      interval: 10s
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pPaddy@2025_Secure!" ]
+      interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 3
 
-    restart: always
-    # ❌ ไม่ expose port 3306
-
-    # phpmyadmin:
-    #   image: phpmyadmin/phpmyadmin:latest
-    #   container_name: backend-paddy-phpmyadmin
-    #   environment:
-    #     PMA_HOST: db
-    #     PMA_PORT: 3306
-    #     PMA_USER: root
-    #     PMA_PASSWORD: root
-    #   depends_on:
-    #     - db
-    #   restart: always
-    #   # ❌ ไม่ expose port
+networks:
+  paddy-net:
+    driver: bridge
 
 volumes:
-  mysql_data_test:
+  mysql_production_data:

@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { sendDeviceCommand_PUMP_OFF_ON, mqttClient } from "../mqtt/mqtt.js";
+import { sendDeviceCommand_PUMP_OFF_ON, mqttClient } from "./mqtt.js";
 import axios from "axios";
 
 /* ===============================
@@ -259,8 +259,6 @@ export const checkAlerts = async (data, device_code) => {
     return;
   }
 
-
-  //น้ำมาก
   if (currentLevel > maxLevel) {
     const alreadySent = await hasAlertToday(deviceRegId, "Level_High");
 

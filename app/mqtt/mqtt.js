@@ -35,7 +35,6 @@ export default function connectMQTT(app, io) {
 
  
   
-
   mqttClient.on("connect", () => {
     mqttClient.subscribe("@msg/paddy/#", (err) => {
       if (!err) {
@@ -131,7 +130,7 @@ export const sendDeviceCommand_disconnect= (client, device_code) => {
 
 
 export const sendDeviceCommand_PUMP_OFF_ON= (client, mac_address , cmd) => {
-    const CMD_TOPIC = `@msg/paddy/cmd/pump`;
+    const CMD_TOPIC = `@msg/paddy//cmd/pump`; // id อย่าลืม
     let payload;
      if(cmd === "OFF"){
         payload = JSON.stringify({
@@ -156,7 +155,7 @@ export const sendDeviceCommand_PUMP_OFF_ON= (client, mac_address , cmd) => {
 
 
 export const sendDeviceCommand_takePhoto= (client, device_code) => {
-    const CMD_TOPIC = `@msg/paddy/cmd/takePhoto`;
+    const CMD_TOPIC = `@msg/paddy/cmd/takePhoto`;   // id อย่าลืม
     const payload = JSON.stringify({
         device_id: device_code,
         type : "takePhoto",

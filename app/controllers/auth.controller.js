@@ -52,6 +52,15 @@ const passwordIsValid = bcrypt.compareSync(
       expiresIn: 86400,
     });
 
+
+    await prisma.Logs.create({
+      data: {
+        user_ID: user.user_ID ,
+        action: "เข้าสู่ระบบ",
+        ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
+      },
+    });
+
     res.status(200)
   .cookie("accessToken", token, {
     httpOnly: true,
@@ -69,9 +78,6 @@ const passwordIsValid = bcrypt.compareSync(
       position: user.position,
     },
   });
-
-
-
   } catch (error) {
     console.error("Error signing in:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -234,6 +240,15 @@ export const line_login = async (req, res) => {
 
     const token = jwt.sign({ id: user.user_ID }, config.secret, {
       expiresIn: 86400, 
+    });
+
+
+    await prisma.Logs.create({
+      data: {
+        user_ID: user.user_ID ,
+        action: "เข้าสู่ระบบโดย LINE",
+        ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
+      },
     });
     
  
@@ -423,9 +438,31 @@ export const line_reg = async (req, res) => {
   }
 };
 
-export const logout = (req, res) => {
+export const logout = async (req, res) => {
   try {
-    res.clearCookie("accessToken");
+
+
+const userId = req.user?.id;     
+console.log(userId)
+
+
+    if (userId) {
+      await prisma.Logs.create({
+        data: {
+          user_ID: parseInt(userId),
+          action: "ออกจากระบบ", 
+          ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
+        },
+      });
+      console.log(`[Log]: User ${userId} logged out successfully.`);
+    }
+
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict"
+    });
+    
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     console.error("Logout error:", error);

@@ -66,12 +66,30 @@ model Growth_Analysis {
   analysis_id             Int                  @id @default(autoincrement())
   growth_stage            String               @db.VarChar(100)
   image_url               String               @db.VarChar(255)
+  confidence              Float?               @db.Float
+  advice                  String?              @db.Text
   created_at              DateTime?            @default(now()) @db.DateTime(0)
   device_registrations_ID Int
   device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, map: "Growth_Analysis_ibfk_1")
 
   @@index([device_registrations_ID], map: "device_registrations_ID")
 }
+
+model Disease_Analysis {
+  disease_id              Int       @id @default(autoincrement())
+  disease_name            String    @db.VarChar(100)
+  confidence              Float?    @db.Float
+  image_url               String    @db.VarChar(255)
+  advice                  String?   @db.Text
+  created_at              DateTime? @default(now()) @db.DateTime(0)
+
+  device_registrations_ID Int
+  device_registrations device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, map: "Disease_Analysis_ibfk_1")
+
+  @@index([device_registrations_ID])
+}
+
+
 
 model Logs {
   logs_ID    Int       @id @default(autoincrement())
@@ -151,6 +169,7 @@ model device_registrations {
   Growth_Analysis         Growth_Analysis[]
   Logs_Alert              Logs_Alert[]
   Permanent_Data          Permanent_Data[]
+  Disease_Analysis        Disease_Analysis[] 
   User_Settings           User_Settings[]
   Account                 Account           @relation(fields: [user_ID], references: [user_ID], onDelete: Cascade, map: "device_registrations_ibfk_1")
   Area                    Area              @relation(fields: [area_id], references: [area_id], onDelete: Cascade, map: "device_registrations_ibfk_2")

@@ -1,317 +1,289 @@
 import { prisma } from "../../lib/prisma.js";
-import { sendDeviceCommand_disconnect,sendDeviceCommand_PUMP_OFF_ON  } from "../mqtt/mqtt.js";
-import { mqttClient } from "../mqtt/mqtt.js";
+import { sendDeviceCommand_disconnect, sendDeviceCommand_PUMP_OFF_ON } from "../service/mqtt.js";
+import { mqttClient } from "../service/mqtt.js";
 // -----------------------------------------------------การจัดการพื้นที่ฟาร์ม-------------------------------------------------------------------
 
 
-export const  createFarmArea = async (req, res) => {
+export const createFarmArea = async (req, res) => {
   try {
-   const user_id = req.user?.id;
-   const { area, farm_name, rice_variety, planting_method, soil_type, water_management, address } = req.body;
+    const user_id = req.user?.id;
+    const { area, farm_name, rice_variety, planting_method, soil_type, water_management, address } = req.body;
 
-   if(!user_id) {
+    if (!user_id) {
       return res.status(400).json({ message: "User ID missing in token" });
-   }  
+    }
 
-   if(!area || !farm_name || !address  || !rice_variety || !planting_method || !soil_type || !water_management) {
+    if (!area || !farm_name || !address || !rice_variety || !planting_method || !soil_type || !water_management) {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-   }
-   
-   const  farm = await prisma.Farm.findFirst({
+    }
+
+    const farm = await prisma.Farm.findFirst({
       where: {
-         farm_name: farm_name,
-         user_ID: user_id
+        farm_name: farm_name,
+        user_ID: user_id
       }
-   });
+    });
 
-   if(farm) {
+    if (farm) {
       return res.status(400).json({ message: "ชื่อแปลงนี้มีอยู่ในระบบแล้ว" });
-   }
+    }
 
-   const newFarmArea = await prisma.Farm.create({
+    const newFarmArea = await prisma.Farm.create({
       data: {
-         user_ID: user_id,
-         area:parseFloat(area),
-         farm_name,
-         rice_variety,
-         planting_method,
-         soil_type,
-         water_management,
-         address
+        user_ID: user_id,
+        area: parseFloat(area),
+        farm_name,
+        rice_variety,
+        planting_method,
+        soil_type,
+        water_management,
+        address
       }
-   });
+    });
 
-   res.status(201).json({ message: "สร้างแปลงเกษตรสำเร็จ", farmArea: newFarmArea });
+    res.status(201).json({ message: "สร้างแปลงเกษตรสำเร็จ", farmArea: newFarmArea });
 
-   await prisma.logs.create({
-      data: {
-         Account: {
-            connect: { user_ID: user_id }
-         },
-         action: "create_farm_area",
-         ip_address: req.ip,
-         created_at: new Date(),
-      },
-   });
   }
-   catch (error) {
-      console.error("Error creating farm area:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+  catch (error) {
+    console.error("Error creating farm area:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 export const updateFarmArea = async (req, res) => {
-   try {
-      const user_id = req.user?.id;
-      const { farm_id, area, farm_name, rice_variety, planting_method, soil_type, water_management, address } = req.body;
+  try {
+    const user_id = req.user?.id;
+    const { farm_id, area, farm_name, rice_variety, planting_method, soil_type, water_management, address } = req.body;
 
-      if(!user_id) {
-         return res.status(400).json({ message: "User ID missing in token" });
-      }
-      if(!farm_id) {
-         return res.status(400).json({ message: "Farm Area ID is required" });
-      }
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+    if (!farm_id) {
+      return res.status(400).json({ message: "Farm Area ID is required" });
+    }
 
-      const farmArea = await prisma.Farm.findFirst({
-         where: {
-            farm_id: farm_id,
-            user_ID: user_id
-         }
-      });
-
-      if(!farmArea) {
-         return res.status(404).json({ message: "ไม่พบแปลงเกษตรนี้" });
+    const farmArea = await prisma.Farm.findFirst({
+      where: {
+        farm_id: farm_id,
+        user_ID: user_id
       }
-      const updatedFarmArea = await prisma.Farm.update({
-         where: { farm_id: farm_id },
-         data: {
-            area: parseFloat(area), 
-            farm_name,
-            rice_variety,
-            planting_method,
-            soil_type,
-            water_management,
-            address
-         }
-      });
-      res.status(200).json({ message: "อัปเดตแปลงเกษตรสำเร็จ", farmArea: updatedFarmArea });
-      await prisma.logs.create({
-         data: {
-            Account: {
-               connect: { user_ID: user_id }
-            },
-            action: "update_farm_area",
-            ip_address: req.ip,
-            created_at: new Date(),
-         },
-      });
-   }
-   catch (error) {
-      console.error("Error updating farm area:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+    });
+
+    if (!farmArea) {
+      return res.status(404).json({ message: "ไม่พบแปลงเกษตรนี้" });
+    }
+    const updatedFarmArea = await prisma.Farm.update({
+      where: { farm_id: farm_id },
+      data: {
+        area: parseFloat(area),
+        farm_name,
+        rice_variety,
+        planting_method,
+        soil_type,
+        water_management,
+        address
+      }
+    });
+    res.status(200).json({ message: "อัปเดตแปลงเกษตรสำเร็จ", farmArea: updatedFarmArea });
+
+  }
+  catch (error) {
+    console.error("Error updating farm area:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 export const deleteFarmArea = async (req, res) => {
-   try {
-      const farm_id = req.body.farm_id;
+  try {
+    const farm_id = req.body.farm_id;
 
-      if(!farm_id) {
-         return res.status(400).json({ message: "Farm Area ID is required" });
+    if (!farm_id) {
+      return res.status(400).json({ message: "Farm Area ID is required" });
+    }
+
+
+    const farmArea = await prisma.Farm.findFirst({
+      where: {
+        farm_id: farm_id
       }
+    });
+    if (!farmArea) {
+      return res.status(404).json({ message: "ไม่พบแปลงเกษตรนี้" });
+    }
+    await prisma.Farm.delete({
+      where: { farm_id: farm_id }
+    });
+    res.status(200).json({ message: "ลบแปลงเกษตรสำเร็จ" });
+  }
 
-
-      const farmArea = await prisma.Farm.findFirst({
-         where: {
-            farm_id: farm_id
-         }
-      });
-      if(!farmArea) {
-         return res.status(404).json({ message: "ไม่พบแปลงเกษตรนี้" });
-      }
-      await prisma.Farm.delete({
-         where: { farm_id: farm_id }
-      });
-      res.status(200).json({ message: "ลบแปลงเกษตรสำเร็จ" });
-   }
-   
-   catch (error) {
-      console.error("Error deleting farm area:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+  catch (error) {
+    console.error("Error deleting farm area:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 export const getFarmAreas = async (req, res) => {
-   try {
-      const user_id = req.user?.id;
+  try {
+    const user_id = req.user?.id;
 
-      if(!user_id) {
-         return res.status(400).json({ message: "User ID missing in token" });
-      }
-
-  const farmAreas = await prisma.farm.findMany({
-  where: { user_ID: user_id },
-  include: {
-    Area: {
-      include: {
-        device_registrations: true   
-      }
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
     }
-  }
-});
 
-
-
-      if(farmAreas.length === 0) {
-         return res.status(404).json({ message: "ไม่พบแปลงเกษตร" });
+    const farmAreas = await prisma.farm.findMany({
+      where: { user_ID: user_id },
+      include: {
+        Area: {
+          include: {
+            device_registrations: true
+          }
+        }
       }
+    });
 
 
-      const result  = farmAreas.map(farm => ({
-         farm_id: farm.farm_id,
-         area: farm.area,
-         farm_name: farm.farm_name,
-         rice_variety: farm.rice_variety,
-         planting_method: farm.planting_method,
-         soil_type: farm.soil_type,
-         water_management: farm.water_management,
-         address: farm.address,
-         sub_areas: farm.Area.map(subArea => ({
-            area_id: subArea.area_id,
-            area_name: subArea.area_name,
-            device_registrations: subArea.device_registrations
+
+    if (farmAreas.length === 0) {
+      return res.status(404).json({ message: "ไม่พบแปลงเกษตร" });
+    }
+
+
+    const result = farmAreas.map(farm => ({
+      farm_id: farm.farm_id,
+      area: farm.area,
+      farm_name: farm.farm_name,
+      rice_variety: farm.rice_variety,
+      planting_method: farm.planting_method,
+      soil_type: farm.soil_type,
+      water_management: farm.water_management,
+      address: farm.address,
+      sub_areas: farm.Area.map(subArea => ({
+        area_id: subArea.area_id,
+        area_name: subArea.area_name,
+        device_registrations: subArea.device_registrations
       }))
-      }));
+    }));
 
-      res.status(200).json(result );
-   } catch (error) {
-      console.error("Error fetching farm areas:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Error fetching farm areas:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 
 };
 
-export const  createSubArea = async (req, res) => {
+export const createSubArea = async (req, res) => {
   try {
-   const user_id = req.user?.id;
-   const { farm_id, area_name } = req.body;
-   if(!user_id) {
+    const user_id = req.user?.id;
+    const { farm_id, area_name } = req.body;
+    if (!user_id) {
       return res.status(400).json({ message: "User ID missing in token" });
-   }
+    }
 
-   if(!farm_id || !area_name ) {
+    if (!farm_id || !area_name) {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-   }
-   const  farm = await prisma.Farm.findFirst({
+    }
+    const farm = await prisma.Farm.findFirst({
       where: {
-         farm_id: farm_id,
+        farm_id: farm_id,
       }
-   });
+    });
 
-   if(!farm) {
+    if (!farm) {
       return res.status(404).json({ message: "ไม่พบแปลงเกษตรนี้" });
-   }
+    }
 
-   const subArea = await prisma.Area.findFirst({
+    const subArea = await prisma.Area.findFirst({
       where: {
-         area_name: area_name,
+        area_name: area_name,
       }
-   });
+    });
 
-   if(subArea) {  
+    if (subArea) {
       return res.status(400).json({ message: "ชื่อพื้นที่ย่อยนี้มีอยู่ในระบบแล้ว" });
-   }
+    }
 
-   const newSubArea = await prisma.Area.create({
+    const newSubArea = await prisma.Area.create({
       data: {
-         farm_id: farm_id,
-         area_name,
+        farm_id: farm_id,
+        area_name,
       }
-   });
+    });
 
-   res.status(201).json({ message: "สร้างพื้นที่ย่อยสำเร็จ", sub_area: newSubArea });
-   await prisma.logs.create({
-      data: {
-         Account: {
-            connect: { user_ID: user_id }
-         },
-         action: "create_sub_area",
-         ip_address: req.ip,
-         created_at: new Date(),
-      },
-   });
-   }
-   catch (error) {
-      console.error("Error creating sub area:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+    res.status(201).json({ message: "สร้างพื้นที่ย่อยสำเร็จ", sub_area: newSubArea });
+
+  }
+  catch (error) {
+    console.error("Error creating sub area:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 
 export const deleteSubArea = async (req, res) => {
-   try {
-      const area_id = req.body.area_id;
-      const user_id = req.user?.id;
+  try {
+    const area_id = req.body.area_id;
+    const user_id = req.user?.id;
 
-      if(!user_id) {
-         return res.status(400).json({ message: "User ID missing in token" });
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+    if (!area_id) {
+      return res.status(400).json({ message: "Sub Area ID is required" });
+    }
+    const subArea = await prisma.Area.findFirst({
+      where: {
+        area_id: area_id,
       }
+    });
+    if (!subArea) {
+      return res.status(404).json({ message: "ไม่พบพื้นที่ย่อยนี้" });
+    }
+    await prisma.Area.delete({
+      where: { area_id: area_id }
+    });
+    res.status(200).json({ message: "ลบพื้นที่ย่อยสำเร็จ" });
+  }
 
-      if(!area_id) {
-         return res.status(400).json({ message: "Sub Area ID is required" });
-      }
-      const subArea = await prisma.Area.findFirst({
-         where: {
-            area_id: area_id ,
-         }
-      });
-      if(!subArea) {
-         return res.status(404).json({ message: "ไม่พบพื้นที่ย่อยนี้" });
-      } 
-      await prisma.Area.delete({
-         where: { area_id: area_id }
-      });
-      res.status(200).json({ message: "ลบพื้นที่ย่อยสำเร็จ" });
-   }
-
-   catch (error) {
-      console.error("Error deleting sub area:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+  catch (error) {
+    console.error("Error deleting sub area:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 
 export const updateSubArea = async (req, res) => {
-   try {
-      const user_id = req.user?.id;
-      const { area_id, area_name } = req.body;
-      if(!user_id) {
-         return res.status(400).json({ message: "User ID missing in token" });
-      }
+  try {
+    const user_id = req.user?.id;
+    const { area_id, area_name } = req.body;
+    if (!user_id) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
 
-      if(!area_id) {
-         return res.status(400).json({ message: "Sub Area ID is required" });
+    if (!area_id) {
+      return res.status(400).json({ message: "Sub Area ID is required" });
+    }
+    const subArea = await prisma.Area.findFirst({
+      where: {
+        area_id: area_id
       }
-      const subArea = await prisma.Area.findFirst({
-         where: {
-            area_id: area_id
-         }
-      });
-      if(!subArea) {
-         return res.status(404).json({ message: "ไม่พบพื้นที่ย่อยนี้" });
+    });
+    if (!subArea) {
+      return res.status(404).json({ message: "ไม่พบพื้นที่ย่อยนี้" });
+    }
+    const updatedSubArea = await prisma.Area.update({
+      where: { area_id: area_id },
+      data: {
+        area_name
       }
-      const updatedSubArea = await prisma.Area.update({
-         where: { area_id: area_id },
-         data: {
-            area_name
-         }
-      });
-      res.status(200).json({ message: "อัปเดตพื้นที่ย่อยสำเร็จ", subArea: updatedSubArea });
-   }
-   catch (error) {
-      console.error("Error updating sub area:", error);
-      res.status(500).json({ message: "Internal server error" });
-   }
+    });
+    res.status(200).json({ message: "อัปเดตพื้นที่ย่อยสำเร็จ", subArea: updatedSubArea });
+  }
+  catch (error) {
+    console.error("Error updating sub area:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 export const registerDeviceToFarmArea = async (req, res) => {
@@ -373,28 +345,22 @@ export const registerDeviceToFarmArea = async (req, res) => {
     // 2) แล้วค่อยทำ transaction อีกชุด
     await prisma.$transaction([
       prisma.device.update({
-        where: { device_ID:  parseInt(device.device_ID) },
+        where: { device_ID: parseInt(device.device_ID) },
         data: { status: "registered" }
       }),
 
       prisma.user_Settings.create({
         data: {
           device_registrations_ID: newRegistration.device_registrations_ID,
-              data_send_interval_days:1,
-              growth_analysis_period:72,
+          data_send_interval_days: 1,
+          growth_analysis_period: 72,
 
           Water_level_min: 10,
           Water_level_mxm: 15
         }
       }),
 
-      prisma.logs.create({
-        data: {
-          user_ID: user_id,
-          action: "register_device_to_farm_area",
-          ip_address: req.ip
-        }
-      })
+
     ]);
 
     return res.status(201).json({
@@ -586,9 +552,9 @@ export const deleteDevice = async (req, res) => {
       where: { device_ID: device.device_ID }
     });
 
-     
 
-      sendDeviceCommand_disconnect(mqttClient, device_code);
+
+    sendDeviceCommand_disconnect(mqttClient, device_code);
 
     return res.status(200).json({
       message: "ลบข้อมูลที่เกี่ยวข้องกับอุปกรณ์สำเร็จ และหยุดการทำงานของอุปกรณ์แล้ว"
@@ -601,9 +567,9 @@ export const deleteDevice = async (req, res) => {
 };
 
 
-export const  ON_OFF_Pupm  = async (req, res) => {
+export const ON_OFF_Pupm = async (req, res) => {
   try {
-    const { pump_ID  , command} = req.body;
+    const { pump_ID, command } = req.body;
 
     if (!pump_ID) {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
@@ -629,17 +595,17 @@ export const  ON_OFF_Pupm  = async (req, res) => {
       return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
     }
 
-    const device_code =  await prisma.device.findFirst({
+    const device_code = await prisma.device.findFirst({
       where: { device_ID: registration.device_ID }
 
     });
 
-      const mac_address = pump.mac_address;
+    const mac_address = pump.mac_address;
 
-    if(command === "OFF"){
-      sendDeviceCommand_PUMP_OFF_ON(mqttClient , mac_address, "OFF");
-    }else if(command === "ON"){
-      sendDeviceCommand_PUMP_OFF_ON(mqttClient , mac_address, "ON");
+    if (command === "OFF") {
+      sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, "OFF");
+    } else if (command === "ON") {
+      sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, "ON");
     }
 
     await prisma.Pump.update({

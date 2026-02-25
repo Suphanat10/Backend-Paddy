@@ -1,5 +1,5 @@
-import   { getdataSetting, updateSetting }  from "../controllers/setting.controller.js";
-import { requireAuthMiddleware } from "../middleware/authJwt.js";
+import   { getdataSetting, updateSetting  }  from "../controllers/setting.controller.js";
+import { requireAuthMiddleware , iSESp32 } from "../middleware/authJwt.js";
 
 export default function (app) {
   app.use(function (req, res, next) {
@@ -23,7 +23,9 @@ export default function (app) {
     requireAuthMiddleware,
     updateSetting
   );
-  
+
+
+ 
 
 
 
