@@ -22,7 +22,6 @@ export default function (app) {
 
 
    app.post("/api/esp32/open-pump", 
-
    openPump);
 
    app.post("/api/esp32/check-pump", 

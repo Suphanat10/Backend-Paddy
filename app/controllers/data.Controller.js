@@ -45,10 +45,9 @@ export const getDevicesByUser = async (req, res) => {
     });
 
     if (!devices || devices.length === 0) {
-      return res.status(200).json([]);  // ⛔ สำคัญมาก: ต้องส่ง array ว่าง
+      return res.status(200).json([]);  
     }
 
-    // ป้องกัน Device เป็น null
     const result = devices.map(d => ({
       id: d.Device?.device_code || null,
       device_reg_id: d.device_registrations_ID,
@@ -449,6 +448,9 @@ export const getdata_Growth_Analysis = async (req, res) => {
       },
     });
 
+
+
+
  
 
     // if (!data || data.length === 0) {
@@ -566,6 +568,72 @@ export const getdata_Pump = async (req, res) => {
 
   } catch (error) {
     console.error("Error getdata_Pump:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export  const getdata_Analysis = async (req, res) => {
+  try {
+    
+    const userId = req.user?.id;
+
+  console.log("User ID from token:", userId); // Debug: ตรวจสอบค่า user_ID
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID missing in token" });
+    }
+
+   const data = await prisma.farm.findMany({
+      where: {
+        user_ID: Number(userId), // ✅ เอาเฉพาะฟาร์มของตัวเอง
+      },
+      include: {
+        Area: {
+          include: {
+            device_registrations: {
+              where: {
+                user_ID: Number(userId), // ✅ เอาเฉพาะ device ของตัวเอง
+              },
+              include: {
+                Device: true,
+
+                Growth_Analysis: {
+                  orderBy: { created_at: "desc" },
+                },
+
+                Disease_Analysis: {
+                  orderBy: { created_at: "desc" },
+                },
+
+                Permanent_Data: {
+                  orderBy: { measured_at: "desc" },
+                  include: {
+                    Sensor_Type: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        message: "ไม่พบข้อมูลของ user นี้",
+      });
+    }
+
+    return res.status(200).json({
+      message: "ดึงข้อมูลสำเร็จ",
+      data,
+    });
+
+  } catch (error) {
+    console.error("Error getdata_Analysis:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -51,10 +51,10 @@ model Farm {
   area             Float?  @db.Float
   farm_name        String? @db.VarChar(50)
   gender           String? @db.VarChar(50)
-  rice_variety     String? @db.VarChar(10)
-  planting_method  String? @db.VarChar(50)
-  soil_type        String? @db.VarChar(50)
-  water_management String? @db.VarChar(100)
+  rice_variety     String? @db.VarChar(255)
+  planting_method  String? @db.VarChar(255)
+  soil_type        String? @db.VarChar(255)
+  water_management String? @db.VarChar(255)
   address          String? @db.Text
   Area             Area[]
   Account          Account @relation(fields: [user_ID], references: [user_ID], onDelete: Cascade, map: "Farm_ibfk_1")

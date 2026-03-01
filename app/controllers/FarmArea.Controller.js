@@ -256,7 +256,7 @@ export const deleteSubArea = async (req, res) => {
 export const updateSubArea = async (req, res) => {
   try {
     const user_id = req.user?.id;
-    const { area_id, area_name } = req.body;
+    const { area_id, new_area_name } = req.body;
     if (!user_id) {
       return res.status(400).json({ message: "User ID missing in token" });
     }
@@ -275,7 +275,7 @@ export const updateSubArea = async (req, res) => {
     const updatedSubArea = await prisma.Area.update({
       where: { area_id: area_id },
       data: {
-        area_name
+        area_name: new_area_name
       }
     });
     res.status(200).json({ message: "อัปเดตพื้นที่ย่อยสำเร็จ", subArea: updatedSubArea });

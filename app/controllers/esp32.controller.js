@@ -110,6 +110,8 @@ export const openPump = async (req, res) => {
       config.secret,
       { expiresIn: "30d" }
     );
+
+    
     return res.status(200).json({
       message: "บันทึกข้อมูลอุปกรณ์สำเร็จ",
       status: pump.status,
@@ -125,7 +127,6 @@ export const openPump = async (req, res) => {
 
 export const checkPump = async (req, res) => {
   try {
-    console.log(req.body);
     const { reg_code, pump_name, area_id } = req.body;
     const user_id = req.user.id;
 
@@ -140,10 +141,6 @@ export const checkPump = async (req, res) => {
     if (!pump) {
       return res.status(404).json({ message: "รหัสการลงทะเบียนไม่ถูกต้อง" });
     }
-
-    // if(pump.user_ID !== user_id) {
-    //    return res.status(400).json({ message: "อุปกรณ์ไม่สําหรับคุณ" });
-    // }
 
     if (pump.status == "WAITING") {
 
@@ -292,22 +289,14 @@ export const analyze_image = async (req, res) => {
   const tempPath = req.file.path;
   const fileName = req.file.filename;
 
-  let apiUrl = "";
-  if (Type === "growth") {
-    apiUrl = "http://rice-app:9000/api/rice/growth";
-  } else if (Type === "disease") {
-    apiUrl = "http://rice-app:9000/api/rice/disease";
-  }
+  const apiUrl = "https://n8n.smart-paddy.space/webhook/35fa8b5a-ecde-497c-97ed-a63ea65c2ac6"
 
-  if (!apiUrl) {
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    return res.status(400).json({ message: "กรุณาระบุ Type (เช่น growth)" });
-  }
+ 
 
   try {
     const formData = new FormData();
-    formData.append("file", fs.createReadStream(tempPath));
-    formData.append("type", Type);
+    formData.append("data", fs.createReadStream(tempPath));
+    formData.append("Type", Type);
 
     const response = await axios.post(apiUrl, formData, {
       headers: { ...formData.getHeaders() },
@@ -328,13 +317,11 @@ export const analyze_image = async (req, res) => {
           Account: true,
           Area: {
             include: {
-              Farm: true // ดึงข้อมูล Farm ที่เชื่อมกับ Area นั้นๆ
+              Farm: true
             }
           }
         },
       });
-
-
 
 
       const targetUserId = registration?.Account?.user_id_line;
@@ -363,7 +350,7 @@ export const analyze_image = async (req, res) => {
         await prisma.Disease_Analysis.create({
           data: {
             disease_name: result.disease_name,
-            confidence: result.confidence,
+            confidence:  parseFloat(result.confidence),
             image_url: publicUrl,
             advice: result.advice,
             device_registrations_ID: registration.device_registrations_ID,
@@ -389,8 +376,6 @@ export const analyze_image = async (req, res) => {
         }
       });
 
-
-
       return res.status(200).json({
         message: "วิเคราะห์สำเร็จ",
         imageUrl: publicUrl,
@@ -401,12 +386,10 @@ export const analyze_image = async (req, res) => {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
       return res.status(422).json({
         message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
-        reason: response.data?.message || "Internal Analysis Error",
+        reason: response.data.reason || "Internal Analysis Error",
       });
     }
   } catch (error) {
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    console.error("Analysis Error:", error.response?.data || error.message);
     return res.status(500).json({
       message: "ไม่สามารถเชื่อมต่อระบบวิเคราะห์ได้",
       error: error.message,
@@ -443,13 +426,6 @@ export const extractBestFrame = async (req, res) => {
         size: '1080x?'
       })
       .on('end', async () => {
-        //   await prisma.logs.create({
-        //     data: {
-        //       user_ID: req.user?.id ? parseInt(req.user.id) : null,
-        //       action: `บันทึกภาพวิเคราะห์โรคข้าว: ${imageName}`,
-        //       ip_address: req.ip || "127.0.0.1",
-        //     }
-        //   });
 
         // 4. ลบไฟล์วิดีโอต้นฉบับทิ้งทันที
         fs.unlink(videoPath, (err) => {
