@@ -47,11 +47,12 @@ export const generateDeviceToken = async (req, res) => {
 
 export const connectDevice = async (req, res) => {
   try {
-    const { device_code } = req.body;
+    const { device_code, latitude, longitude } = req.body;
 
     if (!device_code) {
       return res.status(400).json({ message: "กรุณากรอกรหัสอุปกรณ์" });
     }
+
 
     const device = await prisma.Device.findFirst({
       where: { device_code }
@@ -67,6 +68,8 @@ export const connectDevice = async (req, res) => {
       },
       data: {
         status: "online",
+        longitude: longitude,
+        latitude: latitude,
       }
     });
 
@@ -111,7 +114,7 @@ export const openPump = async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    
+
     return res.status(200).json({
       message: "บันทึกข้อมูลอุปกรณ์สำเร็จ",
       status: pump.status,
@@ -291,7 +294,7 @@ export const analyze_image = async (req, res) => {
 
   const apiUrl = "https://n8n.smart-paddy.space/webhook/35fa8b5a-ecde-497c-97ed-a63ea65c2ac6"
 
- 
+
 
   try {
     const formData = new FormData();
@@ -350,7 +353,7 @@ export const analyze_image = async (req, res) => {
         await prisma.Disease_Analysis.create({
           data: {
             disease_name: result.disease_name,
-            confidence:  parseFloat(result.confidence),
+            confidence: parseFloat(result.confidence),
             image_url: publicUrl,
             advice: result.advice,
             device_registrations_ID: registration.device_registrations_ID,

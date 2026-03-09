@@ -14,10 +14,8 @@ import esp32Routes from "./app/routes/esp32.routes.js";
 
 import connectMQTT, { lastSensorCache, lastStatusCache } from "./app/service/mqtt.js";
 import initScheduler from "./app/service/scheduler.js"
+import { realtimeService } from "./app/service/realtimeService.js";
 
-import multer from "multer";
-import path from "path";
-import fs from "fs";
 
 
 
@@ -30,9 +28,10 @@ app.use("/uploads", express.static("uploads"));
 
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "https://smart-paddy.space"],
-    credentials: true,
+    origin: "*",
     methods: ["GET", "POST"],
+    // credentials: true,
+    // methods: ["GET", "POST"],
   },
 });
 
@@ -59,32 +58,72 @@ esp32Routes(app);
 
 connectMQTT(app, io);
 initScheduler();
+realtimeService.init(io);  // Initialize Realtime Service
 
+// ====== Memory Cache ======
+// const lastSensorCache = new Map();
+// const lastStatusCache = new Map();
+
+// ====== SOCKET ======
 io.on("connection", (socket) => {
+  console.log("🔌 Client connected:", socket.id);
+
+  /* ================= JOIN SINGLE DEVICE ================= */
   socket.on("join-device", (device_code) => {
-    socket.join(`device:${device_code}`);
+    try {
+      if (!device_code || device_code === "N/A") return;
 
-    const lastSensor = lastSensorCache.get(device_code);
-    if (lastSensor) {
-      socket.emit("sensorData", lastSensor);
-    }
+      device_code = device_code.trim().toUpperCase();
 
-    const lastStatus = lastStatusCache.get(device_code);
-    if (lastStatus) {
-      socket.emit("deviceStatus", lastStatus);
+      const roomName = `device:${device_code}`;
+      socket.join(roomName);
+
+      console.log(`👤 ${socket.id} joined ${roomName}`);
+
+      // ✅ ต้องประกาศก่อนใช้
+      const lastSensor = lastSensorCache.get(device_code);
+      const lastStatus = lastStatusCache.get(device_code);
+
+      console.log("🧠 cached sensor:", lastSensor);
+      console.log("🧠 cached status:", lastStatus);
+
+      if (lastSensor) {
+        socket.emit("sensorData", lastSensor);
+      }
+
+      if (lastStatus) {
+        socket.emit("deviceStatus", lastStatus);
+      }
+
+    } catch (err) {
+      console.error("join-device error:", err.message);
     }
   });
 
+  /* ================= JOIN ALL DEVICES ================= */
   socket.on("join-all", () => {
-    socket.join("all-devices");
+    try {
+      socket.join("all-devices");
 
-    for (const data of lastSensorCache.values()) {
-      socket.emit("sensorData", data);
-    }
+      console.log(`🌍 ${socket.id} joined all-devices`);
 
-    for (const status of lastStatusCache.values()) {
-      socket.emit("deviceStatus", status);
+      for (const [device_code, sensorData] of lastSensorCache.entries()) {
+
+        socket.emit("sensorData", sensorData);
+
+        const statusData = lastStatusCache.get(device_code);
+        if (statusData) {
+          socket.emit("deviceStatus", statusData);
+        }
+      }
+
+    } catch (err) {
+      console.error("join-all error:", err.message);
     }
+  });
+  /* ================= DISCONNECT ================= */
+  socket.on("disconnect", () => {
+    console.log("❌ Client disconnected:", socket.id);
   });
 });
 
@@ -95,5 +134,5 @@ app.use((err, req, res, next) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on http://0.0.0.0:" + PORT);
+  console.log("Server running on :" + PORT);
 });

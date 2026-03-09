@@ -74,7 +74,7 @@ export const iSESp32 = async (req, res, next) => {
       });
     }
 
-    const token = authHeader.split(" ")[1]; 
+    const token = authHeader.split(" ")[1];
     if (!token) {
       return res.status(401).json({
         message: "Invalid token format",
@@ -95,7 +95,9 @@ export const iSESp32 = async (req, res, next) => {
 
 export const isAdmin = async (req, res, next) => {
   try {
-    const userId = req.user?.id;   
+    const userId = req.user?.id;
+
+    console.log(userId)
 
     if (!userId) {
       return res.status(400).json({ message: "User ID missing in token" });
@@ -129,11 +131,11 @@ export const SaveLogs = (log_description) => async (req, res, next) => {
 
   try {
 
-     const userId = req.user?.id;   
-     
+    const userId = req.user?.id;
+
     await prisma.Logs.create({
       data: {
-        user_ID: userId ? parseInt(userId) : null, 
+        user_ID: userId ? parseInt(userId) : null,
         action: log_description,
         ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
       },

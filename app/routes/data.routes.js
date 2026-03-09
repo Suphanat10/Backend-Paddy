@@ -1,6 +1,7 @@
-import   {  getdatastatic ,   getDevicesByUser  ,  getdataPersonal , getdata_Device , getdata_history , GetData_devicebyID
-   ,getData_dashboard , getdata_Growth_Analysis , getdata_Pump , getdata_Analysis
- }   from   "../controllers/data.Controller.js"  ;
+import {
+  getdatastatic, getDevicesByUser, getdataPersonal, getdata_Device, getdata_history, GetData_devicebyID
+  , getData_dashboard, getdata_Growth_Analysis, getdata_Pump, getdata_Analysis, getDataAdmin
+} from "../controllers/data.Controller.js";
 import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
 export default function (app) {
@@ -16,17 +17,17 @@ export default function (app) {
   app.get(
     "/api/data/devices",
     requireAuthMiddleware,
-    getDevicesByUser 
+    getDevicesByUser
   );
 
 
 
 
-    app.get(
-      "/api/data/pump",
-      requireAuthMiddleware,
-      getdata_Pump
-    );
+  app.get(
+    "/api/data/pump",
+    requireAuthMiddleware,
+    getdata_Pump
+  );
 
   app.get(
     "/api/data/personal",
@@ -36,7 +37,7 @@ export default function (app) {
 
   app.get(
     "/api/data/device",
-     requireAuthMiddleware,
+    requireAuthMiddleware,
     getdata_Device
   );
 
@@ -75,8 +76,14 @@ export default function (app) {
   );
 
 
+  app.get(
+    "/api/data/admin/analysis",
+    getDataAdmin
+  );
 
 
-   
+
+
+
 
 };

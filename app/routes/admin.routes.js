@@ -1,9 +1,11 @@
 // import { requireAuthMiddleware } from "../middleware/authJwt.js";
-import { get_user ,  add_user  , delete_user , updateProfile , createFarmArea , updateFarmArea , createSubArea , updateSubArea , deleteSubArea , getFarmAreas , transferDevice , getData_Growth_Analysis , getDashboardOverview
-    , getDevices  , createDevice , deleteDevice , updateDevice , getDeviceRegistrations , GetData_devicebyID , GetdataLog  , GetdataLog_Logs_Alert   , update_system_settings , get_system_settings  , getdata_Pump  , ON_OFF_Pupm} from "../controllers/admin.controller.js";
+import {
+  get_user, add_user, delete_user, updateProfile, createFarmArea, updateFarmArea, createSubArea, updateSubArea, deleteSubArea, getFarmAreas, transferDevice, getData_Growth_Analysis, getDashboardOverview, scheduler_device_logs
+  , getDevices, createDevice, deleteDevice, updateDevice, getDeviceRegistrations, GetData_devicebyID, GetdataLog, GetdataLog_Logs_Alert, update_system_settings, get_system_settings, getdata_Pump, ON_OFF_Pupm, getdata_Analysis, capture
+} from "../controllers/admin.controller.js";
 
 
-import { requireAuthMiddleware , isAdmin } from "../middleware/authJwt.js";
+import { requireAuthMiddleware, isAdmin } from "../middleware/authJwt.js";
 
 export default function (app) {
   app.use(function (req, res, next) {
@@ -111,7 +113,7 @@ export default function (app) {
     "/api/admin/device/update",
     requireAuthMiddleware,
     isAdmin,
-     updateDevice
+    updateDevice
   );
 
   app.get(
@@ -185,7 +187,7 @@ export default function (app) {
     isAdmin,
     getDashboardOverview
   );
- 
+
 
   app.get(
     "/api/admin/getdata_Pump",
@@ -204,6 +206,29 @@ export default function (app) {
     ON_OFF_Pupm
 
   );
+
+
+  app.post(
+    "/api/admin/analysis",
+    requireAuthMiddleware,
+    isAdmin,
+    getdata_Analysis,
+  )
+
+
+  app.get(
+    "/api/scheduler-summary",
+    requireAuthMiddleware,
+    isAdmin,
+    scheduler_device_logs
+  )
+
+  app.post(
+    "/api/admin/devices/capture",
+    requireAuthMiddleware,
+    isAdmin,
+    capture
+  )
 
 
 

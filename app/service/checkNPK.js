@@ -135,11 +135,20 @@ export const analyzeSoilAndRice = async (n_mgkg, p_mgkg, k_mgkg, device_code) =>
     const deviceRegId = registration.device_registrations_ID;
     const userId =  registration.Account?.user_id_line;
 
-    // 3. ดึง Log ล่าสุดมาเช็คสถานะเดิม
     const lastLog = await prisma.logs_Alert.findFirst({
-        where: { device_registrations_ID: deviceRegId },
-        orderBy: { created_at: 'desc' }
-    });
+    where: { 
+        device_registrations_ID: deviceRegId,
+        NOT: [
+            { type: 'Save_Data' },
+            { type: 'Level_High' },
+            { type: 'Level_Low' }
+        ]
+    },
+    orderBy: { created_at: 'desc' }
+});
+
+
+
 
     const currentStatus = `${omLevel}-${pLevel}-${kLevel}`;
     const lastStatus = lastLog ? lastLog.type : null;
@@ -168,7 +177,7 @@ export const analyzeSoilAndRice = async (n_mgkg, p_mgkg, k_mgkg, device_code) =>
         data: {
             device_registrations_ID: deviceRegId,
             alert_message: alertMsg,
-            type: currentStatus, // เก็บสถานะ Low-Mid-High ไว้เช็คครั้งหน้า
+            type: currentStatus, 
             created_at: new Date(),
         }
     });
@@ -179,7 +188,6 @@ export const analyzeSoilAndRice = async (n_mgkg, p_mgkg, k_mgkg, device_code) =>
         p: pLevel,
         k: kLevel,
         advice: advice,
-       
     });
 
 };

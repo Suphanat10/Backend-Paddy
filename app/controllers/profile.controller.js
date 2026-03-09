@@ -63,30 +63,30 @@ export const getProfile = async (req, res) => {
   try {
     const user_id = req.user?.id;
 
-    if(!user_id) {
+    if (!user_id) {
       return res.status(400).json({ message: "User ID missing in token" });
-      }
-      const profile = await prisma.Account.findFirst({
-        where: { user_ID: user_id },
-        select: {
-            user_ID: true,
-            first_name: true,
-            last_name: true,
-            email: true,
-            phone_number: true,
-            gender : true,
-            position: true,
-            birth_date: true,
-                        user_id_line: true
+    }
+    const profile = await prisma.Account.findFirst({
+      where: { user_ID: user_id },
+      select: {
+        user_ID: true,
+        first_name: true,
+        last_name: true,
+        email: true,
+        phone_number: true,
+        gender: true,
+        position: true,
+        birth_date: true,
+        user_id_line: true
 
-        },
-      });
+      },
+    });
 
-      if (!profile) {
-         return res.status(404).json({ message: "Profile not found" });
-      }
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
 
-      res.status(200).json({ profile });
+    res.status(200).json({ profile });
 
   } catch (error) {
     console.error("Error fetching profile:", error);
@@ -97,7 +97,7 @@ export const updateProfile = async (req, res) => {
   try {
     // แก้ไขจุดนี้: ดึงเฉพาะ id ออกมาจาก Object req.user
     // จาก Error เดิมระบุว่า id อยู่ใน Object (req.user.id)
-    const user_id = req.user.id; 
+    const user_id = req.user.id;
 
     const { first_name, last_name, phone_number, gender, email } = req.body;
 
@@ -114,9 +114,9 @@ export const updateProfile = async (req, res) => {
 
     // อัปเดตข้อมูล
     const updatedProfile = await prisma.Account.update({
-      where: { 
+      where: {
         // มั่นใจว่าเป็น Integer โดยใช้ Number() หรือ parseInt()
-        user_ID: Number(user_id) 
+        user_ID: Number(user_id)
       },
       data: {
         first_name,
@@ -155,9 +155,9 @@ export const updateProfile = async (req, res) => {
       // ไม่ต้อง return res เพราะเราส่งคำตอบหลักไปแล้ว
     }
 
-    return res.status(200).json({ 
-      message: "อัปเดตโปรไฟล์สำเร็จ", 
-      profile: updatedProfile 
+    return res.status(200).json({
+      message: "อัปเดตโปรไฟล์สำเร็จ",
+      profile: updatedProfile
     });
 
   } catch (error) {
@@ -203,11 +203,11 @@ export const connect_Line = async (req, res) => {
       },
     });
 
-  
-    res.status(200).json({ 
-      message: "เชื่อมต่อ LINE สำเร็จ", 
+
+    res.status(200).json({
+      message: "เชื่อมต่อ LINE สำเร็จ",
       line: lineConnection,
-      displayName: lineProfile.displayName 
+      displayName: lineProfile.displayName
     });
 
 
@@ -243,25 +243,25 @@ export const getdataPofile_notification = async (req, res) => {
       return res.status(400).json({ message: "User ID missing in token" });
     }
 
-    const profile_notification = await prisma.account.findFirst({
+    const profile_notification = await prisma.Account.findFirst({
       where: { user_ID: user_id },
       include: {
         device_registrations: {
           select: {
             device_registrations_ID: true,
-            device_ID: true,        
+            device_ID: true,
             status: true,
-            Logs_Alert: true     
+            Logs_Alert: true
           }
         }
       }
     });
+
     if (!profile_notification) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
-
-      const result = {
+    const result = {
       profile: {
         user_ID: profile_notification.user_ID,
         first_name: profile_notification.first_name,
@@ -275,9 +275,10 @@ export const getdataPofile_notification = async (req, res) => {
         device_ID: device.device_ID,
         status: device.status,
         logs_alert: device.Logs_Alert
-      }))
+      })),
+      impersonated_by: req.user.impersonated_by || null   // ✅ เพิ่มตรงนี้
     };
-    
+
     return res.status(200).json(result);
 
   } catch (error) {

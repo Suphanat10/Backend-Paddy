@@ -16,33 +16,33 @@ export const login = async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" });
 
-     const user = await prisma.Account.findFirst({
-  where: { email },
-  select: {
-    user_ID: true,
-    email: true,
-    password: true, // ⭐ สำคัญ
-    first_name: true,
-    last_name: true,
-    position: true,
-  },
-});
+    const user = await prisma.Account.findFirst({
+      where: { email },
+      select: {
+        user_ID: true,
+        email: true,
+        password: true, // ⭐ สำคัญ
+        first_name: true,
+        last_name: true,
+        position: true,
+      },
+    });
 
     if (!user)
       return res.status(401).json({ message: "ไม่พบบัญชีผู้ใช้" });
-  
-      const hashedPassword =
-  typeof user.password === "string"
-    ? user.password
-    : user.password?.password;
 
-if (!hashedPassword) {
-  return res.status(500).json({ message: "รูปแบบรหัสผ่านไม่ถูกต้อง" });
-}
-const passwordIsValid = bcrypt.compareSync(
-  String(password),
-  hashedPassword
-);
+    const hashedPassword =
+      typeof user.password === "string"
+        ? user.password
+        : user.password?.password;
+
+    if (!hashedPassword) {
+      return res.status(500).json({ message: "รูปแบบรหัสผ่านไม่ถูกต้อง" });
+    }
+    const passwordIsValid = bcrypt.compareSync(
+      String(password),
+      hashedPassword
+    );
 
 
     if (!passwordIsValid)
@@ -55,29 +55,29 @@ const passwordIsValid = bcrypt.compareSync(
 
     await prisma.Logs.create({
       data: {
-        user_ID: user.user_ID ,
+        user_ID: user.user_ID,
         action: "เข้าสู่ระบบ",
         ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
       },
     });
 
     res.status(200)
-  .cookie("accessToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax", // ⭐ แนะนำ
-    path: "/",       // ⭐ แนะนำ
-    maxAge: 86400 * 1000,
-  })
-  .json({
-    message: "เข้าสู่ระบบสำเร็จ",
-    user: {
-      id: user.user_ID,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      position: user.position,
-    },
-  });
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax", // ⭐ แนะนำ
+        path: "/",       // ⭐ แนะนำ
+        maxAge: 86400 * 1000,
+      })
+      .json({
+        message: "เข้าสู่ระบบสำเร็จ",
+        user: {
+          id: user.user_ID,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          position: user.position,
+        },
+      });
   } catch (error) {
     console.error("Error signing in:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -148,7 +148,7 @@ export const lineOA_login = async (req, res) => {
       });
     }
 
-    const SEVEN_DAYS = 7 * 24 * 60 * 60; 
+    const SEVEN_DAYS = 7 * 24 * 60 * 60;
     // 4️⃣ ออก JWT
     const token = jwt.sign(
       { id: user.user_ID },
@@ -156,14 +156,14 @@ export const lineOA_login = async (req, res) => {
       { expiresIn: SEVEN_DAYS }
     );
 
-      await changeRichMenu(lineUserId, "richmenu-840c27dea89fb22f36b9b168e0ea379d");
+    await changeRichMenu(lineUserId, "richmenu-59e68b34d58605f3460c1811beea0c36");
     // 5️⃣ set cookie
     res
       .status(200)
       .cookie("accessToken", token, {
         httpOnly: true,
-  secure: true,        // ❗ ห้าม false
-  sameSite: "none",    // ❗ สำคัญสุด
+        secure: true,        // ❗ ห้าม false
+        sameSite: "none",    // ❗ สำคัญสุด
         path: "/",
         maxAge: SEVEN_DAYS * 1000,
       })
@@ -179,7 +179,7 @@ export const lineOA_login = async (req, res) => {
         },
       });
 
-   
+
 
   } catch (error) {
     console.error("LINE OA Login Error:", error);
@@ -192,9 +192,9 @@ export const lineOA_login = async (req, res) => {
 
 export const line_login = async (req, res) => {
   try {
-    const { userId , accessToken } = req.body;
+    const { userId, accessToken } = req.body;
 
-    if (!accessToken ) {
+    if (!accessToken) {
       return res.status(400).json({ message: "Access Token is required" });
     }
 
@@ -223,8 +223,8 @@ export const line_login = async (req, res) => {
       return res.status(401).json({ message: "LINE Token ไม่ถูกต้องหรือหมดอายุ" });
     }
 
-    
-    const secureUserId = lineProfile.userId; 
+
+    const secureUserId = lineProfile.userId;
 
 
     const user = await prisma.Account.findFirst({
@@ -232,35 +232,34 @@ export const line_login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         message: "ไม่พบบัญชีผู้ใช้ที่ผูกกับ LINE นี้",
-        lineUserId: secureUserId 
+        lineUserId: secureUserId
       });
     }
 
     const token = jwt.sign({ id: user.user_ID }, config.secret, {
-      expiresIn: 86400, 
+      expiresIn: 86400,
     });
 
 
     await prisma.Logs.create({
       data: {
-        user_ID: user.user_ID ,
+        user_ID: user.user_ID,
         action: "เข้าสู่ระบบโดย LINE",
         ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
       },
     });
-    
- 
 
-     res.status(200).cookie("accessToken", token, {
+
+
+    res.status(200).cookie("accessToken", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax", 
-      path: "/",      
+      sameSite: "lax",
+      path: "/",
       maxAge: 86400 * 1000,
     })
-   
       .json({
         message: "เข้าสู่ระบบด้วย LINE สำเร็จ",
         user: {
@@ -268,7 +267,7 @@ export const line_login = async (req, res) => {
           first_name: user.first_name,
           last_name: user.last_name,
           position: user.position,
-          pictureUrl: lineProfile.pictureUrl 
+          pictureUrl: lineProfile.pictureUrl
         },
       });
   } catch (error) {
@@ -285,7 +284,7 @@ export const line_login = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const {  password, first_name, last_name, phone_number, user_id_line , email } = req.body;
+    const { password, first_name, last_name, phone_number, user_id_line, email } = req.body;
 
 
     const phone_number_ = String(phone_number ?? "").replace(/\D/g, "");
@@ -316,7 +315,7 @@ export const register = async (req, res) => {
 
     const hashedPassword = bcrypt.hashSync(password, 8);
 
-  
+
     const created = await prisma.Account.create({
       data: {
         email,
@@ -329,7 +328,7 @@ export const register = async (req, res) => {
       }
     });
 
- 
+
 
     return res.status(200).json({ message: "สมัครสมาชิกสำเร็จ", success: true });
 
@@ -342,14 +341,14 @@ export const register = async (req, res) => {
 
 export const line_reg = async (req, res) => {
   try {
-    const { 
-      first_name, 
-      last_name, 
-      email, 
-      birthdate, 
-      gender, 
-      phone_number, 
-      accessToken 
+    const {
+      first_name,
+      last_name,
+      email,
+      birthdate,
+      gender,
+      phone_number,
+      accessToken
     } = req.body;
 
     const tokenLine = accessToken.replace("Bearer ", "");
@@ -390,12 +389,12 @@ export const line_reg = async (req, res) => {
     const user = await prisma.Account.create({
       data: {
         user_id_line: secureUserId,
-        first_name: first_name || lineProfile.displayName, 
+        first_name: first_name || lineProfile.displayName,
         last_name: last_name || "",
-        email: email || null, 
-        phone_number: phone_number || "", 
+        email: email || null,
+        phone_number: phone_number || "",
         position: "Agriculture",
-      
+
       }
     });
 
@@ -403,7 +402,7 @@ export const line_reg = async (req, res) => {
     // 6. สร้าง JWT Token (Auto Login)
     // ==========================================
     const token = jwt.sign({ id: user.user_ID }, config.secret, {
-      expiresIn: 86400, 
+      expiresIn: 86400,
     });
 
     // ==========================================
@@ -428,7 +427,7 @@ export const line_reg = async (req, res) => {
           first_name: user.first_name,
           last_name: user.last_name,
           position: user.position,
-          pictureUrl: lineProfile.pictureUrl 
+          pictureUrl: lineProfile.pictureUrl
         },
       });
 
@@ -442,15 +441,15 @@ export const logout = async (req, res) => {
   try {
 
 
-const userId = req.user?.id;     
-console.log(userId)
+    const userId = req.user?.id;
+    console.log(userId)
 
 
     if (userId) {
       await prisma.Logs.create({
         data: {
           user_ID: parseInt(userId),
-          action: "ออกจากระบบ", 
+          action: "ออกจากระบบ",
           ip_address: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || "Unknown",
         },
       });
@@ -462,7 +461,7 @@ console.log(userId)
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict"
     });
-    
+
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     console.error("Logout error:", error);
@@ -557,7 +556,7 @@ export const login_admin = async (req, res) => {
       return res.status(400).json({ message: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" });
 
     const user = await prisma.Account.findFirst({
-      where: { email , position: "Admin" }
+      where: { email, position: "Admin" }
     });
 
     if (!user)
@@ -567,29 +566,35 @@ export const login_admin = async (req, res) => {
     if (!passwordIsValid)
       return res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
 
-    const token = jwt.sign({ id: user.user_ID }, config.secret, {
-      expiresIn: 86400,
-    });
+    const token = jwt.sign(
+      {
+        id: user.user_ID,
+        role: "admin",
+        position: user.position
+      },
+      config.secret,
+      { expiresIn: "1d" }
+    );
 
     res.status(200)
-  .cookie("accessToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax", 
-    path: "/",     
-    maxAge: 86400 * 1000,
-  })
-  .json({
-    message: "เข้าสู่ระบบสำเร็จ",
-    user: {
-      id: user.user_ID,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      position: user.position,
-    },
-  });
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 86400 * 1000,
+      })
+      .json({
+        message: "เข้าสู่ระบบสำเร็จ",
+        user: {
+          id: user.user_ID,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          position: user.position,
+        },
+      });
 
-  
+
   } catch (error) {
     console.error("Error signing in:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -619,12 +624,12 @@ export const VerifyOTP = async (req, res) => {
     if (otpRecord.expired_at < now) {
       return res.status(400).json({ message: "รหัส OTP หมดอายุ" });
     }
-   
-     await prisma.OTP.update({
+
+    await prisma.OTP.update({
       where: { otp_id: otpRecord.otp_id },
       data: { is_verified: true },
     });
-    
+
     return res.json({ message: "ยืนยัน OTP สำเร็จ" });
 
   } catch (error) {
@@ -656,12 +661,12 @@ export const verifyOtpAndResetPassword = async (req, res) => {
     if (otpRecord.is_verified === false) {
       return res.status(400).json({ message: "ไม่พบการยืนยัน OTP" });
     }
- 
-     const pass = bcrypt.hashSync(new_password, 8);
+
+    const pass = bcrypt.hashSync(new_password, 8);
     // 3. เปลี่ยนรหัสผ่านผู้ใช้
     await prisma.account.update({
       where: { user_ID: otpRecord.user_id },
-      data: { password: pass }, 
+      data: { password: pass },
     });
 
     await prisma.OTP.delete({ where: { otp_id: otpRecord.otp_id } });
@@ -674,3 +679,85 @@ export const verifyOtpAndResetPassword = async (req, res) => {
   }
 };
 
+export const impersonateUser = async (req, res) => {
+  try {
+
+    const { target_user_id } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const targetUser = await prisma.Account.findUnique({
+      where: { user_ID: Number(target_user_id) }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ message: "ไม่พบผู้ใช้" });
+    }
+
+    const impersonationToken = jwt.sign(
+      {
+        id: targetUser.user_ID,
+        role: targetUser.position,     // 🔥 ดีกว่า fix เป็น "user"
+        impersonated_by: req.user.id   // ✅ แก้ตรงนี้
+      },
+      config.secret,
+      { expiresIn: "1h" }
+    );
+
+    res.cookie("accessToken", impersonationToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 1000,
+    });
+
+    return res.json({ message: "เข้าสู่ระบบในฐานะผู้ใช้สำเร็จ" });
+
+  } catch (error) {
+    console.error("Impersonate error:", error);
+    res.status(500).json({ message: "error" });
+  }
+};
+
+
+export const exitImpersonation = async (req, res) => {
+  try {
+    if (!req.user.impersonated_by) {
+      return res.status(400).json({ message: "ไม่ได้อยู่ในโหมดสวมรอย" });
+    }
+
+    const admin = await prisma.Account.findUnique({
+      where: { user_ID: req.user.impersonated_by }
+    });
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const adminToken = jwt.sign(
+      {
+        id: admin.user_ID,        // ✅ ต้องใช้ id
+        role: "admin",      // ✅ ใช้จากฐานข้อมูลจริง
+      },
+      config.secret,
+      { expiresIn: "1d" }
+    );
+
+    res.cookie("accessToken", adminToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 86400 * 1000,
+    });
+
+    return res.json({ message: "กลับสู่ Admin แล้ว" });
+
+  } catch (error) {
+    console.error("Exit impersonation error:", error);
+    return res.status(500).json({ message: "error" });
+  }
+};
