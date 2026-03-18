@@ -66,7 +66,7 @@ realtimeService.init(io);  // Initialize Realtime Service
 
 // ====== SOCKET ======
 io.on("connection", (socket) => {
-  console.log("🔌 Client connected:", socket.id);
+  console.log("Client connected:", socket.id);
 
   /* ================= JOIN SINGLE DEVICE ================= */
   socket.on("join-device", (device_code) => {
@@ -78,14 +78,14 @@ io.on("connection", (socket) => {
       const roomName = `device:${device_code}`;
       socket.join(roomName);
 
-      console.log(`👤 ${socket.id} joined ${roomName}`);
+      console.log(`${socket.id} joined ${roomName}`);
 
       // ✅ ต้องประกาศก่อนใช้
       const lastSensor = lastSensorCache.get(device_code);
       const lastStatus = lastStatusCache.get(device_code);
 
-      console.log("🧠 cached sensor:", lastSensor);
-      console.log("🧠 cached status:", lastStatus);
+      console.log("cached sensor:", lastSensor);
+      console.log("cached status:", lastStatus);
 
       if (lastSensor) {
         socket.emit("sensorData", lastSensor);
@@ -105,7 +105,7 @@ io.on("connection", (socket) => {
     try {
       socket.join("all-devices");
 
-      console.log(`🌍 ${socket.id} joined all-devices`);
+      console.log(`${socket.id} joined all-devices`);
 
       for (const [device_code, sensorData] of lastSensorCache.entries()) {
 
@@ -123,7 +123,7 @@ io.on("connection", (socket) => {
   });
   /* ================= DISCONNECT ================= */
   socket.on("disconnect", () => {
-    console.log("❌ Client disconnected:", socket.id);
+    console.log("Client disconnected:", socket.id);
   });
 });
 

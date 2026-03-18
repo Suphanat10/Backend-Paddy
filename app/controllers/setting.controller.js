@@ -92,32 +92,32 @@ export const updateSetting = async (req, res) => {
     let updatedSetting;
 
     if (existingSetting) {
-  updatedSetting = await prisma.User_Settings.update({
-    where: { user_settings_ID: existingSetting.user_settings_ID },
-    data: {
-      Water_level_min: Water_level_min,
-      data_send_interval_days: data_send_interval_days,
-      Water_level_mxm: Water_level_max,
-      growth_analysis_period: growth_analysis_period,
-    },
-  });
-} else {
-  updatedSetting = await prisma.User_Settings.create({
-    data: {
-      Water_level_min: Water_level_min,
-      data_send_interval_days: data_send_interval_days,
-      Water_level_mxm: Water_level_max,
-      growth_analysis_period: growth_analysis_period,
-
-      device_registrations: {
-        connect: {
-          device_registrations_ID:
-            device.device_registrations_ID,
+      updatedSetting = await prisma.User_Settings.update({
+        where: { user_settings_ID: existingSetting.user_settings_ID },
+        data: {
+          Water_level_min: parseFloat(Water_level_min),
+          data_send_interval_days: parseFloat(data_send_interval_days),
+          Water_level_mxm: parseFloat(Water_level_max),
+          growth_analysis_period: parseFloat(growth_analysis_period),
         },
-      },
-    },
-  });
-}
+      });
+    } else {
+      updatedSetting = await prisma.User_Settings.create({
+        data: {
+          Water_level_min: parseFloat(Water_level_min),
+          data_send_interval_days: parseFloat(data_send_interval_days),
+          Water_level_mxm: parseFloat(Water_level_max),
+          growth_analysis_period: parseFloat(growth_analysis_period),
+
+          device_registrations: {
+            connect: {
+              device_registrations_ID:
+                device.device_registrations_ID,
+            },
+          },
+        },
+      });
+    }
 
 
     return res.status(200).json({

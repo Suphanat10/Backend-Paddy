@@ -15,6 +15,10 @@ export const generateDeviceToken = async (req, res) => {
   try {
     const { device_code } = req.body;
 
+    if (!req.body) {
+      return res.status(400).json({ message: "กรุณากรอกรหัสอุปกรณ์" });
+    }
+
     if (!device_code) {
       return res.status(400).json({ message: "กรุณากรอกรหัสอุปกรณ์" });
     }
@@ -47,7 +51,7 @@ export const generateDeviceToken = async (req, res) => {
 
 export const connectDevice = async (req, res) => {
   try {
-    const { device_code, latitude, longitude } = req.body;
+    const { device_code } = req.body;
 
     if (!device_code) {
       return res.status(400).json({ message: "กรุณากรอกรหัสอุปกรณ์" });
@@ -68,8 +72,6 @@ export const connectDevice = async (req, res) => {
       },
       data: {
         status: "online",
-        longitude: longitude,
-        latitude: latitude,
       }
     });
 

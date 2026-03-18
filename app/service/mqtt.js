@@ -67,21 +67,20 @@ export default function connectMQTT(app, io) {
   const STATUS_PREFIX = "@msg/smartpaddy/status/";
 
   mqttClient.on("connect", () => {
-    console.log("✅ MQTT Connected Status:", mqttClient.connected);
+    console.log("MQTT Connected Status:", mqttClient.connected);
 
-    // 1. Unsubscribe ของเก่าก่อน (ป้องกัน Duplicate Handler ในบาง Broker)
+
     mqttClient.unsubscribe(`${DATA_PREFIX}#`);
     mqttClient.unsubscribe(`${STATUS_PREFIX}#`);
 
-    // 2. Subscribe ใหม่โดยระบุ QoS 1 (รับประกันว่าข้อความต้องถึงอย่างน้อย 1 ครั้ง)
-    const subscribeOptions = { qos: 1 };
+    const subscribeOptions = { qos: 0 };
 
     mqttClient.subscribe(`${DATA_PREFIX}#`, subscribeOptions, (err) => {
-      if (!err) console.log("📡 Subscribed to DATA with QoS 1");
+      if (!err) console.log("📡 Subscribed to DATA with QoS 0");
     });
 
     mqttClient.subscribe(`${STATUS_PREFIX}#`, subscribeOptions, (err) => {
-      if (!err) console.log("📡 Subscribed to STATUS with QoS 1");
+      if (!err) console.log("📡 Subscribed to STATUS with QoS 0");
     });
   });
 
@@ -128,7 +127,7 @@ export default function connectMQTT(app, io) {
 
         const sensorData = {
           device_code,
-          measured_at: new Date().toISOString(),
+          measured_at: new Date(),
           data: {
             N: data.N?.val,
             P: data.P?.val,

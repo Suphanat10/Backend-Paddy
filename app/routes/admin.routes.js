@@ -1,7 +1,7 @@
 // import { requireAuthMiddleware } from "../middleware/authJwt.js";
 import {
   get_user, add_user, delete_user, updateProfile, createFarmArea, updateFarmArea, createSubArea, updateSubArea, deleteSubArea, getFarmAreas, transferDevice, getData_Growth_Analysis, getDashboardOverview, scheduler_device_logs
-  , getDevices, createDevice, deleteDevice, updateDevice, getDeviceRegistrations, GetData_devicebyID, GetdataLog, GetdataLog_Logs_Alert, update_system_settings, get_system_settings, getdata_Pump, ON_OFF_Pupm, getdata_Analysis, capture
+  , getDevices, createDevice, deleteDevice, updateDevice, getDeviceRegistrations, GetData_devicebyID, GetdataLog, GetdataLog_Logs_Alert, update_system_settings, get_system_settings, getdata_Pump, ON_OFF_Pupm, getdata_Analysis, capture, update_Scheduler
 } from "../controllers/admin.controller.js";
 
 
@@ -228,6 +228,15 @@ export default function (app) {
     requireAuthMiddleware,
     isAdmin,
     capture
+  )
+
+
+  app.post(
+    "/api/admin/update_scheduler_time",
+    requireAuthMiddleware,
+    isAdmin,
+    update_Scheduler
+
   )
 
 

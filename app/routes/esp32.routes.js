@@ -17,7 +17,7 @@ export default function (app) {
 
 
   app.post("/api/esp32/connect",
-    // iSESp32,
+    iSESp32,
     connectDevice);
 
 

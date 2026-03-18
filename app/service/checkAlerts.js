@@ -19,8 +19,8 @@ const sendLineNotify = async (
     minute: "2-digit",
   });
 
-  const isWarning =  statusText.includes("ระดับน้ำต่ำ");
-  const themeColor = isWarning ? "#fdd835" : "#ff9800"; 
+  const isWarning = statusText.includes("ระดับน้ำต่ำ");
+  const themeColor = isWarning ? "#fdd835" : "#ff9800";
 
   try {
     await axios.post(
@@ -226,28 +226,28 @@ export const checkAlerts = async (data, device_code) => {
 
 
   if (currentLevel >= minLevel && currentLevel <= maxLevel) {
-     console.log("ยังไม่ต้องแจ้งเตือน");
+    console.log("ยังไม่ต้องแจ้งเตือน");
     return;
   }
 
-   //น้ำน้อย
+
   if (currentLevel < minLevel) {
     const alreadySent = await hasAlertToday(deviceRegId, "Level_Low");
-    if (alreadySent){
+    if (alreadySent) {
       console.log("ยังไม่ต้องแจ้งเตือน");
       return;
-    } 
+    }
 
-  await sendLineNotify(
-  userLineId,
-  "เเจ้งเตือนระดับน้ำ",
-  "ระดับน้ำต่ำ",
-  currentLevel,
-  "ควรเปิดปั๊มเพิ่อป้องกันการสูญเสีย"
-);
+    await sendLineNotify(
+      userLineId,
+      "เเจ้งเตือนระดับน้ำ",
+      "ระดับน้ำต่ำ",
+      currentLevel,
+      "ควรเปิดปั๊มเพิ่อป้องกันการสูญเสีย"
+    );
 
 
- const alertMessage = "เเจ้งเตือนระดับน้ำต่ำกว่าที่ตั้งค่า ระดับน้ำปัจจุบัน " + currentLevel + " ซม.";
+    const alertMessage = "เเจ้งเตือนระดับน้ำต่ำกว่าที่ตั้งค่า ระดับน้ำปัจจุบัน " + currentLevel + " ซม.";
 
     await prisma.logs_Alert.create({
       data: {
@@ -262,20 +262,20 @@ export const checkAlerts = async (data, device_code) => {
   if (currentLevel > maxLevel) {
     const alreadySent = await hasAlertToday(deviceRegId, "Level_High");
 
-    if (alreadySent){
+    if (alreadySent) {
       console.log("ยังไม่ต้องแจ้งเตือน");
       return;
-    } 
+    }
 
-   const alertMessage = "เเจ้งเตือนระดับน้ำสูงกว่าที่ตั้งค่า ระดับน้ำปัจจุบัน " + currentLevel + " ซม.";
+    const alertMessage = "เเจ้งเตือนระดับน้ำสูงกว่าที่ตั้งค่า ระดับน้ำปัจจุบัน " + currentLevel + " ซม.";
 
-      await sendLineNotify(
-        userLineId,
-        "เเจ้งเตือนระดับน้ำ",
-        "ระดับน้ำสูง",
-        currentLevel,
-        "หากปั๊มเปิดอยู่ ควรปิดปั๊มเพิ่อป้องกันการสูญเสีย"
-      );
+    await sendLineNotify(
+      userLineId,
+      "เเจ้งเตือนระดับน้ำ",
+      "ระดับน้ำสูง",
+      currentLevel,
+      "หากปั๊มเปิดอยู่ ควรปิดปั๊มเพิ่อป้องกันการสูญเสีย"
+    );
 
     await prisma.logs_Alert.create({
       data: {

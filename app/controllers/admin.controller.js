@@ -961,7 +961,6 @@ export const GetdataLog_Logs_Alert = async (req, res) => {
 export const get_system_settings = async (req, res) => {
   try {
     const system_settings = await prisma.system_settings.findMany({
-
     });
 
 
@@ -976,6 +975,43 @@ export const get_system_settings = async (req, res) => {
   }
 };
 
+export const update_Scheduler = async (req, res) => {
+
+  // ตอนนี้ req จะมีค่า และ req.body จะไม่ undefined แล้ว
+  const scheduler_time = req.body.scheduler_time;
+
+  if (!scheduler_time) {
+    return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ถูกต้อง" });
+  }
+
+  try {
+
+    const isoDateString = `1970-01-01T${scheduler_time}:00.000Z`;
+    const dateForPrisma = new Date(isoDateString);
+
+
+
+    const system_settings = await prisma.system_settings.findFirst({});
+
+    if (!system_settings) {
+      return res.status(404).json({ message: "ไม่พบข้อมูล" });
+    }
+
+    const updated_system_settings = await prisma.system_settings.update({
+      where: { system_settings_ID: system_settings.system_settings_ID },
+      data: {
+        scheduler_time: dateForPrisma,
+        updated_at: new Date()
+      },
+    });
+
+    return res.status(200).json(updated_system_settings);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" });
+  }
+};
+
 export const update_system_settings = async (req, res) => {
   try {
     const { data_send_interval_days, growth_analysis_period, water_level_min, water_level_max } = req.body;
@@ -984,9 +1020,7 @@ export const update_system_settings = async (req, res) => {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ถูกต้อง" });
     }
 
-    const system_settings = await prisma.system_settings.findFirst({
-
-    });
+    const system_settings = await prisma.system_settings.findFirst({});
 
     if (!system_settings) {
       return res.status(404).json({ message: "ไม่พบข้อมูล" });

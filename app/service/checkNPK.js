@@ -109,8 +109,7 @@ return match ? {
 
 
 export const analyzeSoilAndRice = async (n_mgkg, p_mgkg, k_mgkg, device_code) => {
-    // 1. คำนวณค่า OM และจัดระดับธาตุอาหาร (อ้างอิงสูตร OM = N / 500)
-    console.log(n_mgkg, p_mgkg, k_mgkg, device_code)
+  
     const calculatedOM = n_mgkg / 500;
     const omLevel = calculatedOM < 1.0 ? "ต่ำ" : calculatedOM <= 2.0 ? "ปานกลาง" : "สูง";
     const pLevel = p_mgkg < 5 ? "ต่ำ" : p_mgkg <= 10 ? "ปานกลาง" : "สูง";
