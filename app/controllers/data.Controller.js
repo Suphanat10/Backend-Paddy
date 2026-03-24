@@ -1,3 +1,4 @@
+import { type } from "node:os";
 import { prisma } from "../../lib/prisma.js";
 
 export const getDevicesByUser = async (req, res) => {
@@ -498,6 +499,7 @@ export const getdata_Growth_Analysis = async (req, res) => {
         analysis_id: ga.analysis_id,
         growth_stage: ga.growth_stage,
         image_url: ga.image_url,
+        type: ga.type,
         confidence: ga.confidence,
         advice: ga.advice,
         created_at: ga.created_at,
@@ -507,6 +509,7 @@ export const getdata_Growth_Analysis = async (req, res) => {
         disease_id: ga.disease_id,
         disease_name: ga.disease_name,
         image_url: ga.image_url,
+        type: ga.type,
         confidence: ga.confidence,
         advice: ga.advice,
         created_at: ga.created_at,
@@ -800,6 +803,11 @@ export const getdata_Pump = async (req, res) => {
 //   }
 // };
 
+
+
+
+
+
 export const getdata_Analysis = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -809,29 +817,22 @@ export const getdata_Analysis = async (req, res) => {
     }
 
     /* ===============================
-       1. ดึง Scheduler ล่าสุดของ Device
+       1. Scheduler ล่าสุด
     =============================== */
-
     const schedulerLogs = await prisma.$queryRaw`
-
       WITH latest_logs AS (
         SELECT 
-            device_code,
-            status,
-            days_remaining,
-            created_at,
-            ROW_NUMBER() OVER (
-                PARTITION BY device_code 
-                ORDER BY created_at DESC
-            ) as rn
+          device_code,
+          status,
+          days_remaining,
+          created_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY device_code 
+            ORDER BY created_at DESC
+          ) as rn
         FROM scheduler_device_logs
       )
-
-      SELECT
-        device_code,
-        status,
-        days_remaining,
-        created_at
+      SELECT device_code, status, days_remaining, created_at
       FROM latest_logs
       WHERE rn = 1
     `;
@@ -842,9 +843,8 @@ export const getdata_Analysis = async (req, res) => {
     });
 
     /* ===============================
-       2. ดึงข้อมูล Farm / Area / Device
+       2. โหลดข้อมูล
     =============================== */
-
     const farms = await prisma.Farm.findMany({
       where: { user_ID: userId },
       include: {
@@ -854,17 +854,14 @@ export const getdata_Analysis = async (req, res) => {
               include: {
                 Device: true,
                 User_Settings: true,
-
                 Growth_Analysis: {
                   orderBy: { created_at: "desc" },
                   take: 10
                 },
-
                 Disease_Analysis: {
                   orderBy: { created_at: "desc" },
                   take: 10
                 },
-
                 Permanent_Data: {
                   include: { Sensor_Type: true },
                   orderBy: { measured_at: "desc" },
@@ -880,7 +877,6 @@ export const getdata_Analysis = async (req, res) => {
     /* ===============================
        3. Format Response
     =============================== */
-
     const formattedData = farms.map(farm => ({
       farm_id: farm.farm_id,
       farm_name: farm.farm_name,
@@ -888,34 +884,106 @@ export const getdata_Analysis = async (req, res) => {
       rice_variety: farm.rice_variety || "ข้าวหอมมะลิ",
 
       areas: farm.Area.map(area => {
-
         const registration = area.device_registrations?.[0];
-        const latestGrowth = registration?.Growth_Analysis?.[0];
-        const latestDisease = registration?.Disease_Analysis?.[0];
-        const user_settings = registration?.User_Settings?.[0];
 
-        const deviceCode = registration?.Device?.device_code;
+        if (!registration) {
+          return {
+            area_id: area.area_id,
+            area_name: area.area_name || "ไม่ระบุชื่อ",
+            device_code: "N/A",
+            status: "offline"
+          };
+        }
+
+        const deviceCode = registration.Device?.device_code;
         const scheduler = schedulerMap[deviceCode] || null;
+        const user_settings = registration.User_Settings?.[0];
 
         /* =========================
-           Sensor History
+           FIX ARRAY ERROR 🔥
         ========================= */
+        const growthList = Array.isArray(registration.Growth_Analysis)
+          ? registration.Growth_Analysis
+          : [];
 
-        const rawHistory = [...(registration?.Permanent_Data || [])].reverse();
+        const diseaseList = Array.isArray(registration.Disease_Analysis)
+          ? registration.Disease_Analysis
+          : [];
+
+        /* =========================
+           เอาเฉพาะ VALID ล่าสุด
+        ========================= */
+        const latestValidGrowth = growthList
+          .filter(i =>
+            i.confidence !== null &&
+            i.confidence >= 0.6 &&
+            i.growth_stage !== "ไม่ผ่านเกณฑ์"
+          )
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+        const latestValidDisease = diseaseList
+          .filter(i =>
+            i.confidence !== null &&
+            i.confidence >= 0.7 &&
+            i.disease_name !== "ไม่ผ่านเกณฑ์"
+          )
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+        /* =========================
+           Timeline (เอาแค่ล่าสุด)
+        ========================= */
+        const growthTimeline = latestValidGrowth
+          ? [{
+            stage: latestValidGrowth.growth_stage,
+            confidence: Math.round(latestValidGrowth.confidence * 100),
+            advice: latestValidGrowth.advice,
+            image_url: latestValidGrowth.image_url,
+            date: new Date(latestValidGrowth.created_at).toLocaleString("th-TH", {
+              timeZone: "Asia/Bangkok"
+            })
+          }]
+          : [];
+
+        const diseaseTimeline = latestValidDisease
+          ? [{
+            name: latestValidDisease.disease_name,
+            confidence: Math.round(latestValidDisease.confidence * 100),
+            status: "warning",
+            advice: latestValidDisease.advice,
+            image_url: latestValidDisease.image_url,
+            date: new Date(latestValidDisease.created_at).toLocaleString("th-TH", {
+              timeZone: "Asia/Bangkok"
+            })
+          }]
+          : [];
+
+        /* =========================
+           SENSOR ล่าสุด
+        ========================= */
+        const sensorMap = {};
+        registration.Permanent_Data?.forEach(d => {
+          const key = d.Sensor_Type?.key;
+          if (key && !sensorMap[key]) {
+            sensorMap[key] = d.value;
+          }
+        });
+
+        /* =========================
+           SENSOR HISTORY
+        ========================= */
+        const rawHistory = Array.isArray(registration.Permanent_Data)
+          ? [...registration.Permanent_Data].reverse()
+          : [];
 
         const sensor_history = Object.values(
           rawHistory.reduce((acc, item) => {
-
             const dateObj = new Date(item.measured_at);
             const dateKey = dateObj.toISOString().split("T")[0];
 
             if (!acc[dateKey]) {
               acc[dateKey] = {
                 timestamp: dateKey,
-                time: dateObj.toLocaleDateString("th-TH", {
-                  day: "numeric",
-                  month: "short"
-                }),
+                time: dateObj.toLocaleDateString("th-TH"),
                 N: null,
                 P: null,
                 K: null,
@@ -928,113 +996,45 @@ export const getdata_Analysis = async (req, res) => {
             if (key) acc[dateKey][key] = Number(item.value);
 
             return acc;
-
           }, {})
-        ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        /* =========================
-           Sensor ล่าสุด
-        ========================= */
-
-        const sensorMap = {};
-
-        registration?.Permanent_Data?.forEach(d => {
-          const key = d.Sensor_Type?.key;
-          if (key && !sensorMap[key]) {
-            sensorMap[key] = d.value;
-          }
-        });
-
-        /* =========================
-           Growth Timeline
-        ========================= */
-
-        const growthTimeline = (registration?.Growth_Analysis || [])
-          .slice()
-          .reverse()
-          .map(item => ({
-            stage: item.growth_stage,
-            confidence: item.confidence
-              ? Math.round(item.confidence * 100)
-              : 0,
-            advice: item.advice,
-            image_url: item.image_url,
-            date: new Date(item.created_at).toLocaleDateString("th-TH", {
-              day: "numeric",
-              month: "short"
-            })
-          }));
-
-        /* =========================
-           Disease Timeline
-        ========================= */
-
-        const diseaseTimeline = (registration?.Disease_Analysis || [])
-          .slice()
-          .reverse()
-          .map(item => ({
-            name: item.disease_name,
-            confidence: item.confidence
-              ? Math.round(item.confidence * 100)
-              : 0,
-            status: item.confidence > 0.7 ? "warning" : "safe",
-            advice: item.advice,
-            image_url: item.image_url,
-            date: new Date(item.created_at).toLocaleDateString("th-TH", {
-              day: "numeric",
-              month: "short"
-            })
-          }));
+        );
 
         return {
           area_id: area.area_id,
           area_name: area.area_name || "ไม่ระบุชื่อ",
-
-          device_code: deviceCode || "N/A",
-
-          gps: {
-            latitude: registration?.Device?.latitude ?? null,
-            longitude: registration?.Device?.longitude ?? null
-          },
-
-          status: registration?.status || "offline",
-
-          /* =========================
-             Scheduler Status (เพิ่มใหม่)
-          ========================= */
+          device_code: deviceCode,
+          status: registration.status || "offline",
 
           scheduler: scheduler
             ? {
               status: scheduler.status,
               days_remaining: scheduler.days_remaining,
-              last_check: scheduler.created_at
+              last_check: new Date(scheduler.created_at).toLocaleString("th-TH", {
+                timeZone: "Asia/Bangkok"
+              })
             }
             : null,
 
           thresholds: {
-            min: user_settings?.Water_level_min ??
-              user_settings?.water_level_min ?? 5,
-            max: user_settings?.water_level_max ??
-              user_settings?.water_level_max ?? 15
+            min: user_settings?.Water_level_min,
+            max: user_settings?.Water_level_mxm
           },
 
-          ...(latestGrowth && {
+          ...(latestValidGrowth && {
             growth: {
-              stage: latestGrowth.growth_stage,
-              image_url: latestGrowth.image_url,
-              advice: latestGrowth.advice,
-              progress: latestGrowth.confidence
-                ? Math.round(latestGrowth.confidence * 100)
-                : 0
+              stage: latestValidGrowth.growth_stage,
+              image_url: latestValidGrowth.image_url,
+              advice: latestValidGrowth.advice,
+              progress: Math.round(latestValidGrowth.confidence * 100)
             }
           }),
 
-          ...(latestDisease && {
+          ...(latestValidDisease && {
             disease: {
-              status: latestDisease.confidence > 0.7 ? "warning" : "safe",
-              name: latestDisease.disease_name,
-              advice: latestDisease.advice,
-              image_url: latestDisease.image_url
+              status: "warning",
+              name: latestValidDisease.disease_name,
+              advice: latestValidDisease.advice,
+              image_url: latestValidDisease.image_url
             }
           }),
 
@@ -1057,23 +1057,19 @@ export const getdata_Analysis = async (req, res) => {
 
           sensor_history
         };
-
       })
     }));
 
     return res.status(200).json(formattedData);
 
   } catch (error) {
-
     console.error("Error getdata_Analysis:", error);
 
     return res.status(500).json({
       message: "Internal server error"
     });
-
   }
 };
-
 
 
 export const getDataAdmin = async (req, res) => {
@@ -1222,7 +1218,7 @@ export const getDataAdmin = async (req, res) => {
                     deviceReg.User_Settings[0].Water_level_min,
 
                   water_level_max:
-                    deviceReg.User_Settings[0].Water_level_max,
+                    deviceReg.User_Settings[0].Water_level_mxm,
 
                   growth_analysis_period:
                     deviceReg.User_Settings[0].growth_analysis_period

@@ -303,6 +303,8 @@
 // };
 
 // export default initScheduler;
+
+
 import cron from "node-cron";
 import pLimit from "p-limit";
 import { prisma } from "../../lib/prisma.js";
@@ -477,7 +479,7 @@ const processDevice = async (dev, today) => {
 
     } catch (error) {
 
-        console.error(`❌ Device processing error: ${deviceCode}`, error);
+        console.error(`Device processing error: ${deviceCode}`, error);
 
         await logDeviceStatus({
             device_id: deviceId,
@@ -571,8 +573,11 @@ const loadScheduler = async () => {
 
     const time = new Date(settings.scheduler_time);
 
-    const hour = time.getUTCHours();
-    const minute = time.getUTCMinutes();
+    const hour = time.getHours();
+    const minute = time.getMinutes();
+
+    // const hour = time.getUTCHours();
+    // const minute = time.getUTCMinutes();
 
     const cronExp = `${minute} ${hour} * * *`;
 

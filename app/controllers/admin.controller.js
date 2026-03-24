@@ -1270,6 +1270,7 @@ export const getData_Growth_Analysis = async (req, res) => {
               growth_stage: ga.growth_stage,
               confidence: ga.confidence,
               advice: ga.advice,
+              type: ga.type,
               image_url: ga.image_url,
               created_at: ga.created_at,
             })),
@@ -1280,6 +1281,7 @@ export const getData_Growth_Analysis = async (req, res) => {
               disease_name: da.disease_name,
               confidence: da.confidence,
               advice: da.advice,
+              type: da.type,
               image_url: da.image_url,
               created_at: da.created_at,
               status: da.confidence > 0.7 ? "warning" : "safe",
@@ -1704,10 +1706,6 @@ export const getdata_Analysis = async (req, res) => {
           area_id: area.area_id,
           area_name: area.area_name || "ไม่ระบุชื่อ",
           device_code: registration?.Device?.device_code || "N/A",
-          gps: {
-            latitude: registration?.Device?.latitude ?? null,
-            longitude: registration?.Device?.longitude ?? null,
-          },
           status: registration?.status || "offline",
 
           thresholds: {

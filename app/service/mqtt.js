@@ -5,24 +5,19 @@ import { checkAlerts } from "./checkAlerts.js";
 import { deviceHealthTracker } from "./deviceHealthTracker.js";
 
 import { prisma } from "../../lib/prisma.js";
-// const MQTT_HOST = "mqtt://emqx:1883";
 const MQTT_HOST = "mqtt://76.13.213.127";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "9614eb4e-ba6d-4f95-8e68-cdbb5d083183";
+const CLIENT_ID = "9614eb4e-ba6d-4f95-8e68-cdbb5d0838350";
 const TOKEN = "qktv3FhWabKPPVyAAv3nrjkNXR6CQC79";
 const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
 
-// const MQTT_PORT = 1883;
-// const CLIENT_ID = "df438c1c-464b-406a-96c8-9f65c200197f";
-// const TOKEN = "server-backend";
-// const SECRET = "server-backend";
 
 
 export const lastStatusCache = new Map();
 const statusTimers = new Map();
 
-const STATUS_TIMEOUT = 10 * 60 * 1000; // 10 นาที
+const STATUS_TIMEOUT = 10 * 60 * 1000;
 
 export const lastSensorCache = new Map();
 
@@ -61,7 +56,6 @@ function resetStatusTimer(device_code, io) {
 }
 
 
-
 export default function connectMQTT(app, io) {
   const DATA_PREFIX = "@msg/smartpaddy/data/";
   const STATUS_PREFIX = "@msg/smartpaddy/status/";
@@ -76,12 +70,17 @@ export default function connectMQTT(app, io) {
     const subscribeOptions = { qos: 0 };
 
     mqttClient.subscribe(`${DATA_PREFIX}#`, subscribeOptions, (err) => {
-      if (!err) console.log("📡 Subscribed to DATA with QoS 0");
+      if (!err) console.log("Subscribed to DATA with QoS 0");
     });
 
     mqttClient.subscribe(`${STATUS_PREFIX}#`, subscribeOptions, (err) => {
-      if (!err) console.log("📡 Subscribed to STATUS with QoS 0");
+      if (!err) console.log("Subscribed to STATUS with QoS 0");
     });
+  });
+
+
+  const thaiTime = new Date().toLocaleString("th-TH", {
+    timeZone: "Asia/Bangkok"
   });
 
   mqttClient.on("message", async (topic, message) => {
@@ -102,7 +101,7 @@ export default function connectMQTT(app, io) {
           timestamp: new Date().toISOString(),
         };
 
-        console.log("📶 STATUS:", statusData);
+        console.log("STATUS:", statusData);
 
         lastStatusCache.set(device_code, statusData);
 
@@ -125,17 +124,25 @@ export default function connectMQTT(app, io) {
         const data = payload.data;
         if (!device_code || !data) return;
 
+
+        if (
+          [data.N?.val, data.P?.val, data.K?.val, data.W?.val].some(
+            (v) => v == null || v === -1
+          )
+        ) {
+          console.log("ค่าไม่ถูกต้อง")
+          return;
+        }
+
         const sensorData = {
           device_code,
-          measured_at: new Date(),
+          measured_at: thaiTime,
           data: {
             N: data.N?.val,
             P: data.P?.val,
             K: data.K?.val,
             W: data.W?.val,
-            S: data.S?.val,
             water_level: data.W?.val,
-            soil_moisture: data.S?.val,
           },
         };
 
@@ -144,7 +151,7 @@ export default function connectMQTT(app, io) {
         const statusData = {
           device_code,
           status: "online",
-          timestamp: new Date().toISOString(),
+          timestamp: thaiTime,
         };
 
         lastStatusCache.set(device_code, statusData);
@@ -152,8 +159,8 @@ export default function connectMQTT(app, io) {
         // Update Device Health Tracker on sensor data received
         deviceHealthTracker.recordHeartbeat(device_code);
 
-        console.log("💾 Saved to cache:", device_code);
-        console.log("🗝 CACHE KEYS:", [...lastSensorCache.keys()]);
+        console.log("Saved to cache:", device_code);
+        console.log("CACHE KEYS:", [...lastSensorCache.keys()]);
 
         io.to(`device:${device_code}`).emit("sensorData", sensorData);
         io.to(`device:${device_code}`).emit("deviceStatus", statusData);
@@ -172,7 +179,7 @@ export default function connectMQTT(app, io) {
       }
 
     } catch (err) {
-      console.error("❌ MQTT Message Error:", err.message);
+      console.error("MQTT Message Error:", err.message);
     }
   });
 

@@ -39,6 +39,8 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # คัดลอก package ก่อน (cache-friendly)
 COPY package*.json ./
 
+ENV TZ=Asia/Bangkok
+
 # ติดตั้ง production deps
 RUN npm install --omit=dev
 
