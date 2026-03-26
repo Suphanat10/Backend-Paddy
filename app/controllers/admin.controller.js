@@ -1,6 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs";
-import { sendDeviceCommand_disconnect, sendDeviceCommand_takePhoto } from "../service/mqtt.js";
+import { sendDeviceCommand_disconnect, sendDeviceCommand_takePhoto, sendDeviceCommand_PUMP_OFF_ON } from "../service/mqtt.js";
 import { mqttClient } from "../service/mqtt.js";
 
 
@@ -1563,6 +1563,211 @@ export const ON_OFF_Pupm = async (req, res) => {
 
 
 
+// export const getdata_Analysis = async (req, res) => {
+//   try {
+//     const userId = req.body.userId;
+
+//     if (!userId) {
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     const systemSettings = await prisma.system_settings.findFirst({
+//       orderBy: { updated_at: "desc" }
+//     });
+
+//     const farms = await prisma.Farm.findMany({
+//       where: { user_ID: userId },
+//       include: {
+//         Area: {
+//           include: {
+//             device_registrations: {
+//               include: {
+//                 Device: true,
+//                 User_Settings: true,
+
+//                 // 🔥 ดึงย้อนหลัง 10 รายการสำหรับ timeline
+//                 Growth_Analysis: {
+//                   orderBy: { created_at: "desc" },
+//                   take: 10,
+//                 },
+//                 Disease_Analysis: {
+//                   orderBy: { created_at: "desc" },
+//                   take: 10,
+//                 },
+
+//                 Permanent_Data: {
+//                   include: { Sensor_Type: true },
+//                   orderBy: { measured_at: "desc" },
+//                   take: 40,
+//                 }
+//               }
+//             }
+//           }
+//         }
+//       }
+//     });
+
+//     const formattedData = farms.map(farm => ({
+//       farm_id: farm.farm_id,
+//       farm_name: farm.farm_name,
+//       location: farm.address || "ไม่ระบุพิกัด",
+//       rice_variety: farm.rice_variety || "ข้าวหอมมะลิ",
+
+//       areas: farm.Area.map(area => {
+//         const registration = area.device_registrations?.[0];
+//         const latestGrowth = registration?.Growth_Analysis?.[0];
+//         const latestDisease = registration?.Disease_Analysis?.[0];
+//         const settings = registration?.User_Settings?.[0];
+//         const user_settings = registration?.User_Settings[0];
+
+//         // =========================
+//         // 📊 Sensor History
+//         // =========================
+//         const rawHistory = [...(registration?.Permanent_Data || [])].reverse();
+
+//         const sensor_history = Object.values(
+//           rawHistory.reduce((acc, item) => {
+//             const dateObj = new Date(item.measured_at);
+//             const dateKey = dateObj.toISOString().split("T")[0];
+
+//             if (!acc[dateKey]) {
+//               acc[dateKey] = {
+//                 timestamp: dateKey,
+//                 time: dateObj.toLocaleDateString("th-TH", {
+//                   day: "numeric",
+//                   month: "short"
+//                 }),
+//                 N: null,
+//                 P: null,
+//                 K: null,
+//                 S: null,
+//                 W: null
+//               };
+//             }
+
+//             const key = item.Sensor_Type?.key;
+//             if (key) acc[dateKey][key] = Number(item.value);
+
+//             return acc;
+//           }, {})
+//         ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+//         // =========================
+//         // 📌 Sensor ล่าสุด
+//         // =========================
+//         const sensorMap = {};
+//         registration?.Permanent_Data?.forEach(d => {
+//           const key = d.Sensor_Type?.key;
+//           if (key && !sensorMap[key]) {
+//             sensorMap[key] = d.value;
+//           }
+//         });
+
+//         // =========================
+//         // 🌱 Growth Timeline
+//         // =========================
+//         const growthTimeline = (registration?.Growth_Analysis || [])
+//           .slice()
+//           .reverse()
+//           .map(item => ({
+//             stage: item.growth_stage,
+//             confidence: item.confidence
+//               ? Math.round(item.confidence * 100)
+//               : 0,
+//             advice: item.advice,
+//             image_url: item.image_url,
+//             date: new Date(item.created_at).toLocaleDateString("th-TH", {
+//               day: "numeric",
+//               month: "short"
+//             })
+//           }));
+
+//         // =========================
+//         // 🦠 Disease Timeline
+//         // =========================
+//         const diseaseTimeline = (registration?.Disease_Analysis || [])
+//           .slice()
+//           .reverse()
+//           .map(item => ({
+//             name: item.disease_name,
+//             confidence: item.confidence
+//               ? Math.round(item.confidence * 100)
+//               : 0,
+//             status: item.confidence > 0.7 ? "warning" : "safe",
+//             advice: item.advice,
+//             image_url: item.image_url,
+//             date: new Date(item.created_at).toLocaleDateString("th-TH", {
+//               day: "numeric",
+//               month: "short"
+//             })
+//           }));
+
+//         return {
+//           area_id: area.area_id,
+//           area_name: area.area_name || "ไม่ระบุชื่อ",
+//           device_code: registration?.Device?.device_code || "N/A",
+//           status: registration?.status || "offline",
+
+//           thresholds: {
+//             min: user_settings?.Water_level_min ??
+//               user_settings?.water_level_min ?? 5,
+//             max: user_settings?.water_level_max ??
+//               user_settings?.water_level_max ?? 15
+//           },
+
+//           // ✅ Latest Growth
+//           ...(latestGrowth && {
+//             growth: {
+//               stage: latestGrowth.growth_stage,
+//               image_url: latestGrowth.image_url,
+//               advice: latestGrowth.advice,
+//               progress: latestGrowth.confidence
+//                 ? Math.round(latestGrowth.confidence * 100)
+//                 : 0
+//             }
+//           }),
+
+//           // ✅ Latest Disease (แก้ bug image_url)
+//           ...(latestDisease && {
+//             disease: {
+//               status: latestDisease.confidence > 0.7 ? "warning" : "safe",
+//               name: latestDisease.disease_name,
+//               advice: latestDisease.advice,
+//               image_url: latestDisease.image_url
+//             }
+//           }),
+
+//           // ✅ Timeline เพิ่มใหม่
+//           ...(growthTimeline.length > 0 && {
+//             growth_timeline: growthTimeline
+//           }),
+
+//           ...(diseaseTimeline.length > 0 && {
+//             disease_timeline: diseaseTimeline
+//           }),
+
+//           sensor: {
+//             water_level: sensorMap["water_level"] ?? 0,
+//             n: sensorMap["n"] ?? 0,
+//             p: sensorMap["p"] ?? 0,
+//             k: sensorMap["k"] ?? 0,
+//             humidity: sensorMap["humidity"] ?? 0,
+//             temperature: sensorMap["temperature"] ?? 0
+//           },
+
+//           sensor_history
+//         };
+//       })
+//     }));
+
+//     return res.status(200).json(formattedData);
+
+//   } catch (error) {
+//     console.error("Error getdata_Analysis:", error);
+//     return res.status(500).json({ message: "Internal server error" });
+//   }
+// };
+
 export const getdata_Analysis = async (req, res) => {
   try {
     const userId = req.body.userId;
@@ -1570,10 +1775,6 @@ export const getdata_Analysis = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "Invalid user ID" });
     }
-
-    const systemSettings = await prisma.system_settings.findFirst({
-      orderBy: { updated_at: "desc" }
-    });
 
     const farms = await prisma.Farm.findMany({
       where: { user_ID: userId },
@@ -1584,21 +1785,18 @@ export const getdata_Analysis = async (req, res) => {
               include: {
                 Device: true,
                 User_Settings: true,
-
-                // 🔥 ดึงย้อนหลัง 10 รายการสำหรับ timeline
                 Growth_Analysis: {
                   orderBy: { created_at: "desc" },
-                  take: 10,
+                  take: 10
                 },
                 Disease_Analysis: {
                   orderBy: { created_at: "desc" },
-                  take: 10,
+                  take: 10
                 },
-
                 Permanent_Data: {
                   include: { Sensor_Type: true },
                   orderBy: { measured_at: "desc" },
-                  take: 40,
+                  take: 40
                 }
               }
             }
@@ -1615,15 +1813,97 @@ export const getdata_Analysis = async (req, res) => {
 
       areas: farm.Area.map(area => {
         const registration = area.device_registrations?.[0];
-        const latestGrowth = registration?.Growth_Analysis?.[0];
-        const latestDisease = registration?.Disease_Analysis?.[0];
-        const settings = registration?.User_Settings?.[0];
-        const user_settings = registration?.User_Settings[0];
 
-        // =========================
-        // 📊 Sensor History
-        // =========================
-        const rawHistory = [...(registration?.Permanent_Data || [])].reverse();
+        if (!registration) {
+          return {
+            area_id: area.area_id,
+            area_name: area.area_name || "ไม่ระบุชื่อ",
+            device_code: "N/A",
+            status: "offline"
+          };
+        }
+
+        const user_settings = registration?.User_Settings?.[0];
+
+        /* =========================
+           SAFE ARRAY
+        ========================= */
+        const growthList = Array.isArray(registration.Growth_Analysis)
+          ? registration.Growth_Analysis
+          : [];
+
+        const diseaseList = Array.isArray(registration.Disease_Analysis)
+          ? registration.Disease_Analysis
+          : [];
+
+        /* =========================
+           FILTER VALID ONLY (🔥 แก้ปัญหาหลัก)
+        ========================= */
+        const latestValidGrowth = growthList
+          .filter(item =>
+            item &&
+            item.confidence !== null &&
+            item.confidence >= 0.6 &&
+            item.growth_stage &&
+            item.growth_stage !== "ไม่ผ่านเกณฑ์"
+          )
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+        const latestValidDisease = diseaseList
+          .filter(item =>
+            item &&
+            item.confidence !== null &&
+            item.confidence >= 0.7 &&
+            item.disease_name &&
+            item.disease_name !== "ไม่ผ่านเกณฑ์"
+          )
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+        /* =========================
+           TIMELINE (เอาเฉพาะตัวที่ผ่านล่าสุด)
+        ========================= */
+        const growthTimeline = latestValidGrowth
+          ? [{
+            stage: latestValidGrowth.growth_stage,
+            confidence: Math.round(latestValidGrowth.confidence * 100),
+            advice: latestValidGrowth.advice,
+            image_url: latestValidGrowth.image_url,
+            date: new Date(latestValidGrowth.created_at).toLocaleString("th-TH", {
+              timeZone: "Asia/Bangkok"
+            })
+          }]
+          : [];
+
+        const diseaseTimeline = latestValidDisease
+          ? [{
+            name: latestValidDisease.disease_name,
+            confidence: Math.round(latestValidDisease.confidence * 100),
+            status: "warning",
+            advice: latestValidDisease.advice,
+            image_url: latestValidDisease.image_url,
+            date: new Date(latestValidDisease.created_at).toLocaleString("th-TH", {
+              timeZone: "Asia/Bangkok"
+            })
+          }]
+          : [];
+
+        /* =========================
+           SENSOR ล่าสุด
+        ========================= */
+        const sensorMap = {};
+        registration?.Permanent_Data?.forEach(d => {
+          const key = d.Sensor_Type?.key;
+          if (key && !sensorMap[key]) {
+            sensorMap[key] = d.value;
+          }
+        });
+
+        /* =========================
+           SENSOR HISTORY
+        ========================= */
+        const rawHistory = Array.isArray(registration.Permanent_Data)
+          ? [...registration.Permanent_Data].reverse()
+          : [];
 
         const sensor_history = Object.values(
           rawHistory.reduce((acc, item) => {
@@ -1633,10 +1913,7 @@ export const getdata_Analysis = async (req, res) => {
             if (!acc[dateKey]) {
               acc[dateKey] = {
                 timestamp: dateKey,
-                time: dateObj.toLocaleDateString("th-TH", {
-                  day: "numeric",
-                  month: "short"
-                }),
+                time: dateObj.toLocaleDateString("th-TH"),
                 N: null,
                 P: null,
                 K: null,
@@ -1652,92 +1929,42 @@ export const getdata_Analysis = async (req, res) => {
           }, {})
         ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        // =========================
-        // 📌 Sensor ล่าสุด
-        // =========================
-        const sensorMap = {};
-        registration?.Permanent_Data?.forEach(d => {
-          const key = d.Sensor_Type?.key;
-          if (key && !sensorMap[key]) {
-            sensorMap[key] = d.value;
-          }
-        });
-
-        // =========================
-        // 🌱 Growth Timeline
-        // =========================
-        const growthTimeline = (registration?.Growth_Analysis || [])
-          .slice()
-          .reverse()
-          .map(item => ({
-            stage: item.growth_stage,
-            confidence: item.confidence
-              ? Math.round(item.confidence * 100)
-              : 0,
-            advice: item.advice,
-            image_url: item.image_url,
-            date: new Date(item.created_at).toLocaleDateString("th-TH", {
-              day: "numeric",
-              month: "short"
-            })
-          }));
-
-        // =========================
-        // 🦠 Disease Timeline
-        // =========================
-        const diseaseTimeline = (registration?.Disease_Analysis || [])
-          .slice()
-          .reverse()
-          .map(item => ({
-            name: item.disease_name,
-            confidence: item.confidence
-              ? Math.round(item.confidence * 100)
-              : 0,
-            status: item.confidence > 0.7 ? "warning" : "safe",
-            advice: item.advice,
-            image_url: item.image_url,
-            date: new Date(item.created_at).toLocaleDateString("th-TH", {
-              day: "numeric",
-              month: "short"
-            })
-          }));
-
         return {
           area_id: area.area_id,
           area_name: area.area_name || "ไม่ระบุชื่อ",
-          device_code: registration?.Device?.device_code || "N/A",
-          status: registration?.status || "offline",
+          device_code: registration.Device?.device_code || "N/A",
+          status: registration.status || "offline",
 
           thresholds: {
-            min: user_settings?.Water_level_min ??
-              user_settings?.water_level_min ?? 5,
-            max: user_settings?.water_level_max ??
-              user_settings?.water_level_max ?? 15
+            min: user_settings?.Water_level_min ?? 5,
+            max: user_settings?.Water_level_mxm ?? 15
           },
 
-          // ✅ Latest Growth
-          ...(latestGrowth && {
-            growth: {
-              stage: latestGrowth.growth_stage,
-              image_url: latestGrowth.image_url,
-              advice: latestGrowth.advice,
-              progress: latestGrowth.confidence
-                ? Math.round(latestGrowth.confidence * 100)
-                : 0
+          /* =========================
+             🔥 แสดงเฉพาะที่ผ่านเท่านั้น
+          ========================= */
+          ...(latestValidGrowth && {
+            latest_growth: {
+              analysis_id: latestValidGrowth.analysis_id,
+              growth_stage: latestValidGrowth.growth_stage,
+              image_url: latestValidGrowth.image_url,
+              created_at: latestValidGrowth.created_at,
+              advice: latestValidGrowth.advice,
+              confidence: latestValidGrowth.confidence
             }
           }),
 
-          // ✅ Latest Disease (แก้ bug image_url)
-          ...(latestDisease && {
-            disease: {
-              status: latestDisease.confidence > 0.7 ? "warning" : "safe",
-              name: latestDisease.disease_name,
-              advice: latestDisease.advice,
-              image_url: latestDisease.image_url
+          ...(latestValidDisease && {
+            latest_disease: {
+              disease_id: latestValidDisease.disease_id,
+              disease_name: latestValidDisease.disease_name,
+              image_url: latestValidDisease.image_url,
+              created_at: latestValidDisease.created_at,
+              advice: latestValidDisease.advice,
+              confidence: latestValidDisease.confidence
             }
           }),
 
-          // ✅ Timeline เพิ่มใหม่
           ...(growthTimeline.length > 0 && {
             growth_timeline: growthTimeline
           }),
@@ -1764,10 +1991,11 @@ export const getdata_Analysis = async (req, res) => {
 
   } catch (error) {
     console.error("Error getdata_Analysis:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
-
 
 function formatThaiDate(date) {
   const months = [

@@ -156,7 +156,7 @@ export const analyzeSoilAndRice = async (n_mgkg, p_mgkg, k_mgkg, device_code) =>
 
   // 4. ตรวจสอบความเปลี่ยนแปลง (ถ้าเหมือนเดิม ไม่ต้องบันทึกและแจ้งเตือน)
   if (lastLog && currentStatus === lastStatus) {
-    console.log("test")
+    console.log("ระดับธาตุอาหารยังคงเดิม ไม่มีการแจ้งเตือนใหม่")
     return {
       message: "ระดับธาตุอาหารยังคงเดิม ไม่มีการแจ้งเตือนใหม่",
       isUpdated: false

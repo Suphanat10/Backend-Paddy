@@ -7,7 +7,7 @@ import { deviceHealthTracker } from "./deviceHealthTracker.js";
 import { prisma } from "../../lib/prisma.js";
 const MQTT_HOST = "mqtt://76.13.213.127";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "9614eb4e-ba6d-4f95-8e68-cdbb5d0838350";
+const CLIENT_ID = "9614eb4e-ba6d-0004f95-8e68-cdbb5d080003081250";
 const TOKEN = "qktv3FhWabKPPVyAAv3nrjkNXR6CQC79";
 const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
@@ -79,9 +79,6 @@ export default function connectMQTT(app, io) {
   });
 
 
-  const thaiTime = new Date().toLocaleString("th-TH", {
-    timeZone: "Asia/Bangkok"
-  });
 
   mqttClient.on("message", async (topic, message) => {
     try {
@@ -136,7 +133,7 @@ export default function connectMQTT(app, io) {
 
         const sensorData = {
           device_code,
-          measured_at: thaiTime,
+          measured_at: new Date().toISOString(),
           data: {
             N: data.N?.val,
             P: data.P?.val,
@@ -151,7 +148,7 @@ export default function connectMQTT(app, io) {
         const statusData = {
           device_code,
           status: "online",
-          timestamp: thaiTime,
+          timestamp: new Date().toISOString(),
         };
 
         lastStatusCache.set(device_code, statusData);
@@ -208,29 +205,50 @@ export const sendDeviceCommand_disconnect = (client, device_code) => {
 
 
 export const sendDeviceCommand_PUMP_OFF_ON = (client, mac_address, cmd) => {
-  const CMD_TOPIC = `@msg/smartpaddy/cmd/${mac_address}`;
-  let payload;
-  if (cmd === "OFF") {
-    payload = JSON.stringify({
-      pump: mac_address,
-      type: "pump_off"
-    });
-  } else if (cmd === "ON") {
-    payload = JSON.stringify({
-      pump: mac_address,
-      type: "pump_on"
-    });
-  }
+  try {
+    if (!client) throw new Error("MQTT client is missing");
+    if (!mac_address) throw new Error("mac_address is required");
 
-  client.publish(CMD_TOPIC, payload, { qos: 1, retain: true }, (err) => {
-    if (err) {
-      console.error(`Failed to send command to ${mac_address}:`, err.message);
+    const CMD_TOPIC = `@msg/smartpaddy/cmd/${mac_address}`;
+
+    let payload;
+
+    if (cmd === "OFF") {
+      payload = {
+        pump: mac_address,
+        type: "pump_off"
+      };
+    } else if (cmd === "ON") {
+      payload = {
+        pump: mac_address,
+        type: "pump_on"
+      };
     } else {
-      console.log(`Command [pump] sent to ${mac_address}`);
+      throw new Error(`Invalid cmd: ${cmd}`);
     }
-  });
-};
 
+    const message = JSON.stringify(payload);
+
+    client.publish(
+      CMD_TOPIC,
+      message,
+      { qos: 1, retain: true },
+      (err) => {
+        if (err) {
+          console.error(`❌ MQTT ERROR (${mac_address}):`, err.message);
+        } else {
+          console.log(`✅ MQTT SENT [${cmd}] → ${mac_address}`);
+        }
+      }
+    );
+
+    return true;
+
+  } catch (err) {
+    console.error("sendDeviceCommand_PUMP_OFF_ON ERROR:", err.message);
+    return false;
+  }
+};
 
 export const sendDeviceCommand_takePhoto = (client, device_code) => {
   const CMD_TOPIC = `@msg/smartpaddy/cmd/${device_code}`;

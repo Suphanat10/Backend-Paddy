@@ -214,9 +214,153 @@
 
 
 
+// import { prisma } from "../../lib/prisma.js";
+
+// let sensorTypesCache = [];
+
+// export const saveSensorData = async (data, device_code) => {
+//   try {
+//     // ================= VALIDATE =================
+//     if (!data || !device_code) {
+//       console.log("Invalid payload");
+//       return;
+//     }
+
+//     // ================= GET DEVICE =================
+//     const device = await prisma.Device.findFirst({
+//       where: { device_code },
+//     });
+
+//     if (!device) {
+//       console.log("ไม่พบ Device:", device_code);
+//       return;
+//     }
+
+//     // ================= GET REGISTRATION (ตัวล่าสุด + active) =================
+//     const registration = await prisma.device_registrations.findFirst({
+//       where: {
+//         device_ID: device.device_ID,
+//         status: "active",
+//       },
+//       orderBy: { registered_at: "desc" },
+//     });
+
+//     if (!registration) {
+//       console.log("ไม่พบ registration ที่ active:", device_code);
+//       return;
+//     }
+
+//     // ================= GET USER SETTINGS =================
+//     const user_settings = await prisma.User_Settings.findFirst({
+//       where: {
+//         device_registrations_ID: registration.device_registrations_ID,
+//       },
+//     });
+
+//     if (!user_settings) {
+//       console.log("ไม่พบ User settings:", device_code);
+//       return;
+//     }
+
+//     // ================= INTERVAL (วัน) =================
+//     const intervalDays = Math.max(
+//       1,
+//       Number(user_settings.data_send_interval_days) || 1
+//     );
+
+//     const now = new Date();
+
+//     // ================= GET LAST LOG =================
+//     const lastLog = await prisma.Permanent_Data.findFirst({
+//       where: {
+//         device_registrations_ID: registration.device_registrations_ID,
+//       },
+//       orderBy: { measured_at: "desc" },
+//     });
+
+//     // ================= CHECK TIME (แบบ calendar day) =================
+//     if (lastLog) {
+//       const lastDate = new Date(lastLog.measured_at);
+
+//       const today = new Date(now.toISOString().split("T")[0]);
+//       const lastDay = new Date(lastDate.toISOString().split("T")[0]);
+
+//       const diffDays = Math.floor(
+//         (today - lastDay) / (1000 * 60 * 60 * 24)
+//       );
+
+//       console.log(
+//         `ผ่านมาแล้ว ${diffDays} วัน (ตั้งไว้ ${intervalDays} วัน)`
+//       );
+
+//       if (diffDays < intervalDays) {
+//         console.log("ยังไม่ถึงเวลา → ไม่บันทึก");
+//         return;
+//       }
+//     }
+
+//     // ================= GET SENSOR TYPES (cache) =================
+//     if (sensorTypesCache.length === 0) {
+//       sensorTypesCache = await prisma.Sensor_Type.findMany();
+//     }
+
+//     const records = [];
+
+//     for (const sensorType of sensorTypesCache) {
+//       const key = sensorType.key;
+
+//       if (key && key in data) {
+//         const rawVal = data[key]?.val;
+//         const value = Number.isFinite(Number(rawVal))
+//           ? Number(rawVal)
+//           : 0;
+
+//         records.push({
+//           device_registrations_ID:
+//             registration.device_registrations_ID,
+//           sensor_type: sensorType.sensor_type_ID,
+//           value,
+//           unit: data[key]?.unit || "",
+//           measured_at: now,
+//         });
+//       }
+//     }
+
+//     // ================= SAVE DATA =================
+//     if (records.length > 0) {
+//       await prisma.Permanent_Data.createMany({
+//         data: records,
+//       });
+//     }
+
+//     // ================= LOG =================
+//     const thaiTime = now.toLocaleString("th-TH", {
+//       timeZone: "Asia/Bangkok",
+//     });
+
+//     await prisma.Logs_Alert.create({
+//       data: {
+//         device_registrations: {
+//           connect: {
+//             device_registrations_ID:
+//               registration.device_registrations_ID,
+//           },
+//         },
+//         alert_message: "เก็บข้อมูลสำเร็จ " + thaiTime,
+//         type: "Save_Data",
+//         created_at: now,
+//       },
+//     });
+
+//     console.log(`บันทึกข้อมูลสำเร็จ: ${device_code}`);
+//   } catch (err) {
+//     console.error("saveSensorData error:", err.message);
+//   }
+// };
+
+
 import { prisma } from "../../lib/prisma.js";
 
-// cache sensorTypes (ลด query DB)
 let sensorTypesCache = [];
 
 export const saveSensorData = async (data, device_code) => {
@@ -233,7 +377,7 @@ export const saveSensorData = async (data, device_code) => {
     });
 
     if (!device) {
-      console.log("ไม่พบ Device:", device_code);
+      console.log("❌ ไม่พบ Device:", device_code);
       return;
     }
 
@@ -247,7 +391,7 @@ export const saveSensorData = async (data, device_code) => {
     });
 
     if (!registration) {
-      console.log("ไม่พบ registration ที่ active:", device_code);
+      console.log(`❌ ไม่พบ registration ที่ active: ${device_code}`);
       return;
     }
 
@@ -259,16 +403,12 @@ export const saveSensorData = async (data, device_code) => {
     });
 
     if (!user_settings) {
-      console.log("ไม่พบ User settings:", device_code);
+      console.log(`❌ ไม่พบ User settings: ${device_code}`);
       return;
     }
 
     // ================= INTERVAL (วัน) =================
-    const intervalDays = Math.max(
-      1,
-      Number(user_settings.data_send_interval_days) || 1
-    );
-
+    const intervalDays = Math.max(1, Number(user_settings.data_send_interval_days) || 1);
     const now = new Date();
 
     // ================= GET LAST LOG =================
@@ -279,23 +419,24 @@ export const saveSensorData = async (data, device_code) => {
       orderBy: { measured_at: "desc" },
     });
 
-    // ================= CHECK TIME (แบบ calendar day) =================
+    // ================= CHECK TIME & CALCULATE REMAINING =================
+    let daysRemaining = 0;
+
     if (lastLog) {
+      // ใช้การ Reset เวลาเป็น 00:00:00 เพื่อเทียบวันที่แม่นยำ (Calendar Day)
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const lastDate = new Date(lastLog.measured_at);
+      const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
 
-      const today = new Date(now.toISOString().split("T")[0]);
-      const lastDay = new Date(lastDate.toISOString().split("T")[0]);
+      const diffTime = today - lastDay;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-      const diffDays = Math.floor(
-        (today - lastDay) / (1000 * 60 * 60 * 24)
-      );
+      daysRemaining = intervalDays - diffDays;
 
-      console.log(
-        `ผ่านมาแล้ว ${diffDays} วัน (ตั้งไว้ ${intervalDays} วัน)`
-      );
+      console.log(`[${device_code}] ผ่านมาแล้ว: ${diffDays} วัน | รอบบันทึก: ${intervalDays} วัน | เหลืออีก: ${Math.max(0, daysRemaining)} วัน`);
 
       if (diffDays < intervalDays) {
-        console.log("ยังไม่ถึงเวลา → ไม่บันทึก");
+        console.log(`⏳ [${device_code}] ยังไม่ถึงเวลา (เหลืออีก ${daysRemaining} วัน) → ไม่บันทึก`);
         return;
       }
     }
@@ -306,19 +447,14 @@ export const saveSensorData = async (data, device_code) => {
     }
 
     const records = [];
-
     for (const sensorType of sensorTypesCache) {
       const key = sensorType.key;
-
       if (key && key in data) {
         const rawVal = data[key]?.val;
-        const value = Number.isFinite(Number(rawVal))
-          ? Number(rawVal)
-          : 0;
+        const value = Number.isFinite(Number(rawVal)) ? Number(rawVal) : 0;
 
         records.push({
-          device_registrations_ID:
-            registration.device_registrations_ID,
+          device_registrations_ID: registration.device_registrations_ID,
           sensor_type: sensorType.sensor_type_ID,
           value,
           unit: data[key]?.unit || "",
@@ -335,26 +471,21 @@ export const saveSensorData = async (data, device_code) => {
     }
 
     // ================= LOG =================
-    const thaiTime = now.toLocaleString("th-TH", {
-      timeZone: "Asia/Bangkok",
-    });
+    const thaiTime = now.toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
 
     await prisma.Logs_Alert.create({
       data: {
         device_registrations: {
-          connect: {
-            device_registrations_ID:
-              registration.device_registrations_ID,
-          },
+          connect: { device_registrations_ID: registration.device_registrations_ID },
         },
-        alert_message: "เก็บข้อมูลสำเร็จ " + thaiTime,
+        alert_message: `เก็บข้อมูลสำเร็จ (${thaiTime}) รอบถัดไปในอีก ${intervalDays} วัน`,
         type: "Save_Data",
         created_at: now,
       },
     });
 
-    console.log(`บันทึกข้อมูลสำเร็จ: ${device_code}`);
+    console.log(`✅ บันทึกข้อมูลสำเร็จ: ${device_code}`);
   } catch (err) {
-    console.error("saveSensorData error:", err.message);
+    console.error("❌ saveSensorData error:", err.message);
   }
 };

@@ -1071,9 +1071,13 @@ export const getdata_Analysis = async (req, res) => {
   }
 };
 
-
 export const getDataAdmin = async (req, res) => {
   try {
+
+    const formatTH = (date) =>
+      new Date(date).toLocaleString("th-TH", {
+        timeZone: "Asia/Bangkok"
+      });
 
     const farms = await prisma.farm.findMany({
       include: {
@@ -1093,12 +1097,21 @@ export const getDataAdmin = async (req, res) => {
                   }
                 },
 
+                // 🔥 filter ตั้งแต่ DB (สำคัญมาก)
                 Growth_Analysis: {
+                  where: {
+                    confidence: { gte: 0.6 },
+                    growth_stage: { not: "ไม่ผ่านเกณฑ์" }
+                  },
                   orderBy: { created_at: "desc" },
                   take: 1
                 },
 
                 Disease_Analysis: {
+                  where: {
+                    confidence: { gte: 0.7 },
+                    disease_name: { not: "ไม่ผ่านเกณฑ์" }
+                  },
                   orderBy: { created_at: "desc" },
                   take: 1
                 },
@@ -1136,14 +1149,11 @@ export const getDataAdmin = async (req, res) => {
           const device = deviceReg.Device;
 
           // =========================
-          // 🔥 เลือก scheduler ล่าสุดที่สำคัญ
+          // 🔥 Scheduler (priority logic)
           // =========================
-
-          let latestScheduler = null;
-
           const logs = device?.scheduler_logs || [];
 
-          latestScheduler =
+          const latestScheduler =
             logs.find(l => l.status === "queued") ||
             logs.find(l => l.status === "never_analyzed") ||
             logs.find(l => l.status === "not_due") ||
@@ -1151,23 +1161,20 @@ export const getDataAdmin = async (req, res) => {
             null;
 
           // =========================
-          // 🌡 Sensor ล่าสุด
+          // 🔥 Sensor ล่าสุด (แก้ bug ค่าเก่า)
           // =========================
-
           const sensorMap = {};
 
           deviceReg.Permanent_Data.forEach((data) => {
-
             const key = data.Sensor_Type?.key;
 
-            if (key && !sensorMap[key]) {
+            if (key) {
               sensorMap[key] = {
                 value: data.value,
                 unit: data.unit,
                 measured_at: data.measured_at
               };
             }
-
           });
 
           const latestSensor = {
@@ -1178,6 +1185,11 @@ export const getDataAdmin = async (req, res) => {
             S: sensorMap["S"] || null
           };
 
+          // =========================
+          // 🔥 Fix settings bug
+          // =========================
+          const setting = deviceReg.User_Settings?.[0];
+
           return {
 
             device_id: deviceReg.device_registrations_ID,
@@ -1186,9 +1198,10 @@ export const getDataAdmin = async (req, res) => {
 
             status: deviceReg.status,
 
-            registered_at: deviceReg.registered_at,
+            registered_at: deviceReg.registered_at
+              ? formatTH(deviceReg.registered_at)
+              : null,
 
-            // ✅ Scheduler ล่าสุดที่ถูกต้อง
             latest_scheduler: latestScheduler
               ? {
                 status: latestScheduler.status,
@@ -1196,70 +1209,60 @@ export const getDataAdmin = async (req, res) => {
                 days_since_last: latestScheduler.days_since_last,
                 days_remaining: latestScheduler.days_remaining,
                 message: latestScheduler.message,
-                created_at: latestScheduler.created_at
+                created_at: formatTH(latestScheduler.created_at)
               }
               : null,
 
             latest_sensor: latestSensor,
 
+            // 🔥 เอา index 0 ได้เลย เพราะ filter แล้ว
             latest_growth:
-              deviceReg.Growth_Analysis[0] || null,
+              deviceReg.Growth_Analysis?.[0]
+                ? {
+                  ...deviceReg.Growth_Analysis[0],
+                  created_at: formatTH(deviceReg.Growth_Analysis[0].created_at)
+                }
+                : null,
 
             latest_disease:
-              deviceReg.Disease_Analysis[0] || null,
-
-            latest_setting:
-              deviceReg.User_Settings.length > 0
+              deviceReg.Disease_Analysis?.[0]
                 ? {
-                  data_send_interval_days:
-                    deviceReg.User_Settings[0].data_send_interval_days,
-
-                  water_level_min:
-                    deviceReg.User_Settings[0].Water_level_min,
-
-                  water_level_max:
-                    deviceReg.User_Settings[0].Water_level_mxm,
-
-                  growth_analysis_period:
-                    deviceReg.User_Settings[0].growth_analysis_period
+                  ...deviceReg.Disease_Analysis[0],
+                  created_at: formatTH(deviceReg.Disease_Analysis[0].created_at)
                 }
-                : null
+                : null,
+
+            latest_setting: setting
+              ? {
+                data_send_interval_days: setting.data_send_interval_days,
+                water_level_min: setting.Water_level_min,
+                water_level_max: setting.Water_level_max, // 🔥 FIX TYPO
+                growth_analysis_period: setting.growth_analysis_period
+              }
+              : null
           };
 
         });
 
         return {
-
           area_id: area.area_id,
-
           area_name: area.area_name,
-
           pump_count: area.Pump.length,
-
           device_count: area.device_registrations.length,
-
           devices
-
         };
 
       });
 
       return {
-
         farm_id: farm.farm_id,
-
         farm_name: farm.farm_name,
-
         owner: farm.Account
           ? `${farm.Account.first_name || ""} ${farm.Account.last_name || ""}`
           : null,
-
         area_count: farm.Area.length,
-
         device_count: totalDevices,
-
         areas
-
       };
 
     });
@@ -1270,13 +1273,219 @@ export const getDataAdmin = async (req, res) => {
     });
 
   } catch (error) {
-
     console.error("Get Data Admin Error:", error);
 
     res.status(500).json({
       ok: false,
       message: "Server Error"
     });
-
   }
 };
+// export const getDataAdmin = async (req, res) => {
+//   try {
+
+//     const farms = await prisma.farm.findMany({
+//       include: {
+//         Account: true,
+//         Area: {
+//           include: {
+//             Pump: true,
+//             device_registrations: {
+//               include: {
+
+//                 Device: {
+//                   include: {
+//                     scheduler_logs: {
+//                       orderBy: { created_at: "desc" },
+//                       take: 3
+//                     }
+//                   }
+//                 },
+
+//                 Growth_Analysis: {
+//                   orderBy: { created_at: "desc" },
+//                   take: 1
+//                 },
+
+//                 Disease_Analysis: {
+//                   orderBy: { created_at: "desc" },
+//                   take: 1
+//                 },
+
+//                 User_Settings: {
+//                   orderBy: { user_settings_ID: "desc" },
+//                   take: 1
+//                 },
+
+//                 Permanent_Data: {
+//                   orderBy: { measured_at: "desc" },
+//                   take: 20,
+//                   include: {
+//                     Sensor_Type: true
+//                   }
+//                 }
+
+//               }
+//             }
+//           }
+//         }
+//       }
+//     });
+
+//     const formatted = farms.map((farm) => {
+
+//       let totalDevices = 0;
+
+//       const areas = farm.Area.map((area) => {
+
+//         totalDevices += area.device_registrations.length;
+
+//         const devices = area.device_registrations.map((deviceReg) => {
+
+//           const device = deviceReg.Device;
+
+//           // =========================
+//           // 🔥 เลือก scheduler ล่าสุดที่สำคัญ
+//           // =========================
+
+//           let latestScheduler = null;
+
+//           const logs = device?.scheduler_logs || [];
+
+//           latestScheduler =
+//             logs.find(l => l.status === "queued") ||
+//             logs.find(l => l.status === "never_analyzed") ||
+//             logs.find(l => l.status === "not_due") ||
+//             logs[0] ||
+//             null;
+
+//           // =========================
+//           // 🌡 Sensor ล่าสุด
+//           // =========================
+
+//           const sensorMap = {};
+
+//           deviceReg.Permanent_Data.forEach((data) => {
+
+//             const key = data.Sensor_Type?.key;
+
+//             if (key && !sensorMap[key]) {
+//               sensorMap[key] = {
+//                 value: data.value,
+//                 unit: data.unit,
+//                 measured_at: data.measured_at
+//               };
+//             }
+
+//           });
+
+//           const latestSensor = {
+//             N: sensorMap["N"] || null,
+//             P: sensorMap["P"] || null,
+//             K: sensorMap["K"] || null,
+//             W: sensorMap["W"] || null,
+//             S: sensorMap["S"] || null
+//           };
+
+//           return {
+
+//             device_id: deviceReg.device_registrations_ID,
+
+//             device_code: device?.device_code || null,
+
+//             status: deviceReg.status,
+
+//             registered_at: deviceReg.registered_at,
+
+//             // ✅ Scheduler ล่าสุดที่ถูกต้อง
+//             latest_scheduler: latestScheduler
+//               ? {
+//                 status: latestScheduler.status,
+//                 growth_period: latestScheduler.growth_period,
+//                 days_since_last: latestScheduler.days_since_last,
+//                 days_remaining: latestScheduler.days_remaining,
+//                 message: latestScheduler.message,
+//                 created_at: latestScheduler.created_at
+//               }
+//               : null,
+
+//             latest_sensor: latestSensor,
+
+//             latest_growth:
+//               deviceReg.Growth_Analysis[0] || null,
+
+//             latest_disease:
+//               deviceReg.Disease_Analysis[0] || null,
+
+//             latest_setting:
+//               deviceReg.User_Settings.length > 0
+//                 ? {
+//                   data_send_interval_days:
+//                     deviceReg.User_Settings[0].data_send_interval_days,
+
+//                   water_level_min:
+//                     deviceReg.User_Settings[0].Water_level_min,
+
+//                   water_level_max:
+//                     deviceReg.User_Settings[0].Water_level_mxm,
+
+//                   growth_analysis_period:
+//                     deviceReg.User_Settings[0].growth_analysis_period
+//                 }
+//                 : null
+//           };
+
+//         });
+
+//         return {
+
+//           area_id: area.area_id,
+
+//           area_name: area.area_name,
+
+//           pump_count: area.Pump.length,
+
+//           device_count: area.device_registrations.length,
+
+//           devices
+
+//         };
+
+//       });
+
+//       return {
+
+//         farm_id: farm.farm_id,
+
+//         farm_name: farm.farm_name,
+
+//         owner: farm.Account
+//           ? `${farm.Account.first_name || ""} ${farm.Account.last_name || ""}`
+//           : null,
+
+//         area_count: farm.Area.length,
+
+//         device_count: totalDevices,
+
+//         areas
+
+//       };
+
+//     });
+
+//     res.status(200).json({
+//       ok: true,
+//       data: formatted
+//     });
+
+//   } catch (error) {
+
+//     console.error("Get Data Admin Error:", error);
+
+//     res.status(500).json({
+//       ok: false,
+//       message: "Server Error"
+//     });
+
+//   }
+// };

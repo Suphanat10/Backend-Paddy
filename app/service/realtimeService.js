@@ -8,19 +8,17 @@ class RealtimeService {
     constructor() {
         this.io = null;
         this.mqttClient = mqttClient;
-
-        // เก็บประวัติการทำงาน scheduler (เก็บสูงสุด 100 รายการล่าสุด)
         this.schedulerLogs = [];
         this.maxSchedulerLogs = 100;
 
         this._setupEventListeners();
-        console.log('🚀 Realtime Service initialized');
+        console.log('Realtime Service initialized');
     }
 
     init(io) {
         this.io = io;
         this._setupSocketListeners();
-        console.log('🔌 Realtime Service connected to Socket.IO');
+        console.log('Realtime Service connected to Socket.IO');
     }
 
 
@@ -65,9 +63,6 @@ class RealtimeService {
         });
     }
 
-    /**
-     * Setup Socket Listeners
-     */
     _setupSocketListeners() {
         if (!this.io) return;
 

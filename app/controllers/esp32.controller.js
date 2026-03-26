@@ -287,7 +287,7 @@ export const analyze_image = async (req, res) => {
   const finalPath = `uploads/${fileName}`;
   fs.renameSync(tempPath, finalPath);
 
-  const publicUrl = `${req.protocol}://${req.get("host")}/uploads/${fileName}`;
+  const publicUrl = `http://smart-paddy.space/uploads/${fileName}`;
 
   try {
     // ================= DEVICE =================
