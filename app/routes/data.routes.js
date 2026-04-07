@@ -1,6 +1,6 @@
 import {
   getdatastatic, getDevicesByUser, getdataPersonal, getdata_Device, getdata_history, GetData_devicebyID
-  , getData_dashboard, getdata_Growth_Analysis, getdata_Pump, getdata_Analysis, getDataAdmin
+  , getData_dashboard, getdata_Growth_Analysis, getdata_Pump, getdata_Analysis, getDataAdmin, getdataTimeline
 } from "../controllers/data.Controller.js";
 import { requireAuthMiddleware } from "../middleware/authJwt.js";
 
@@ -80,6 +80,13 @@ export default function (app) {
     "/api/data/admin/analysis",
     getDataAdmin
   );
+
+
+  app.post(
+    "/api/data/Timeline/",
+    requireAuthMiddleware,
+    getdataTimeline
+  )
 
 
 

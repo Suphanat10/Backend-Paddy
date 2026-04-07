@@ -211,12 +211,14 @@ export const line_login = async (req, res) => {
 
 
     let lineProfile;
+
     try {
       const response = await axios.get("https://api.line.me/v2/profile", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+
       lineProfile = response.data;
     } catch (lineError) {
       console.error("LINE Token Verification Failed:", lineError.message);

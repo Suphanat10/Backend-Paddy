@@ -2,12 +2,13 @@ import mqtt from "mqtt";
 import { saveSensorData } from "./saveSensorData.js";
 import { analyzeSoilAndRice } from "./checkNPK.js"
 import { checkAlerts } from "./checkAlerts.js";
-import { deviceHealthTracker } from "./deviceHealthTracker.js";
+import { checkdevice } from "./checkdevice.js";
+
 
 import { prisma } from "../../lib/prisma.js";
 const MQTT_HOST = "mqtt://76.13.213.127";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "9614eb4e-ba6d-0004f95-8e68-cdbb5d080003081250";
+const CLIENT_ID = "9614eb4e-ba6d-0004f95-81250051688002185700";
 const TOKEN = "qktv3FhWabKPPVyAAv3nrjkNXR6CQC79";
 const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
@@ -15,9 +16,8 @@ const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
 
 export const lastStatusCache = new Map();
-const statusTimers = new Map();
 
-const STATUS_TIMEOUT = 10 * 60 * 1000;
+
 
 export const lastSensorCache = new Map();
 
@@ -31,29 +31,8 @@ export const mqttClient = mqtt.connect(MQTT_HOST, {
 
 
 
-
-function resetStatusTimer(device_code, io) {
-  if (statusTimers.has(device_code)) {
-    clearTimeout(statusTimers.get(device_code));
-  }
-
-  const timer = setTimeout(() => {
-    console.warn(`${device_code} OFFLINE (timeout)`);
-
-    const statusData = {
-      device_code,
-      status: "offline",
-      timestamp: new Date().toISOString(),
-    };
-
-    lastStatusCache.set(device_code, statusData);
-
-    io.to(`device:${device_code}`).emit("deviceStatus", statusData);
-    io.to("all-devices").emit("deviceStatus", statusData);
-  }, STATUS_TIMEOUT);
-
-  statusTimers.set(device_code, timer);
-}
+const DEVICE_TIMEOUT_MS = 1 * 60 * 1000;
+const deviceTimers = new Map();
 
 
 export default function connectMQTT(app, io) {
@@ -61,130 +40,112 @@ export default function connectMQTT(app, io) {
   const STATUS_PREFIX = "@msg/smartpaddy/status/";
 
   mqttClient.on("connect", () => {
-    console.log("MQTT Connected Status:", mqttClient.connected);
-
-
-    mqttClient.unsubscribe(`${DATA_PREFIX}#`);
-    mqttClient.unsubscribe(`${STATUS_PREFIX}#`);
-
-    const subscribeOptions = { qos: 0 };
-
-    mqttClient.subscribe(`${DATA_PREFIX}#`, subscribeOptions, (err) => {
-      if (!err) console.log("Subscribed to DATA with QoS 0");
-    });
-
-    mqttClient.subscribe(`${STATUS_PREFIX}#`, subscribeOptions, (err) => {
-      if (!err) console.log("Subscribed to STATUS with QoS 0");
-    });
+    console.log("MQTT Connected:", mqttClient.connected);
+    mqttClient.subscribe([`${DATA_PREFIX}#`, `${STATUS_PREFIX}#`], { qos: 1 });
   });
 
+  const markDeviceOffline = (device_code, reason) => {
+    const statusData = {
+      device_code,
+      status: "offline",
+      reason,
+      timestamp: new Date().toISOString(),
+    };
+    lastStatusCache.set(device_code, statusData);
+    io.to(`device:${device_code}`).emit("deviceStatus", statusData);
+    io.to("all-devices").emit("deviceStatus", statusData);
+    checkdevice(device_code);
+    console.log(`DEVICE DEAD: ${device_code} | Reason: ${reason}`);
+  };
 
+  const resetHeartbeat = (device_code) => {
 
-  mqttClient.on("message", async (topic, message) => {
+    if (deviceTimers.has(device_code)) clearTimeout(deviceTimers.get(device_code));
+    const timer = setTimeout(() => {
+      markDeviceOffline(device_code, "Heartbeat timeout > 1 min (real data missing)");
+
+    }, DEVICE_TIMEOUT_MS);
+    deviceTimers.set(device_code, timer);
+  };
+
+  mqttClient.on("message", (topic, message, packet) => {
+    let payload;
     try {
-      const payload = JSON.parse(message.toString());
+      payload = JSON.parse(message.toString());
+    } catch {
+      console.warn("Non-JSON message on", topic, ":", message.toString());
+      return;
+    }
 
-      /* ================= STATUS ================= */
-      if (topic.startsWith(STATUS_PREFIX)) {
+    const { retain: isRetained } = packet;
 
-        let device_code = payload.device_code?.trim().toUpperCase();
-        const status = payload.status;
+    // STATUS
+    if (topic.startsWith(STATUS_PREFIX)) {
+      const device_code = payload.device_code?.trim().toUpperCase();
+      const status = payload.status;
+      if (!device_code || !status) return;
 
-        if (!device_code || !status) return;
 
-        const statusData = {
-          device_code,
-          status,
-          timestamp: new Date().toISOString(),
-        };
-
-        console.log("STATUS:", statusData);
-
-        lastStatusCache.set(device_code, statusData);
-
-        // Update Device Health Tracker
-        if (status === 'online') {
-          deviceHealthTracker.recordHeartbeat(device_code);
-        }
-
-        io.to(`device:${device_code}`).emit("deviceStatus", statusData);
-        io.to("all-devices").emit("deviceStatus", statusData);
+      if (status === "offline" && isRetained) {
+        markDeviceOffline(device_code, "LWT OFFLINE");
       }
 
-      /* ================= SENSOR ================= */
-      if (topic.startsWith(DATA_PREFIX)) {
+      // Online จริง ต้อง reset heartbeat
+      if (status === "online" && !isRetained) {
+        resetHeartbeat(device_code);
+      }
+    }
 
-        let device_code =
-          payload.device_code?.trim().toUpperCase() ||
-          topic.replace(DATA_PREFIX, "").trim().toUpperCase();
+    // SENSOR
+    if (topic.startsWith(DATA_PREFIX)) {
+      const device_code = payload.device_code?.trim().toUpperCase() || topic.replace(DATA_PREFIX, "").trim().toUpperCase();
+      const data = payload.data;
+      if (!device_code || !data) return;
 
-        const data = payload.data;
-        if (!device_code || !data) return;
+      const invalid = Object.values(data).some(d => d?.val == null || d.val === -1);
+      if (invalid) return console.log("ค่า sensor ไม่ถูกต้อง:", device_code);
 
+      const sensorData = {
+        device_code,
+        measured_at: new Date().toISOString(),
+        data: {
+          N: data.N?.val,
+          P: data.P?.val,
+          K: data.K?.val,
+          pH: data.pH?.val ?? data.PH?.val ?? data.ph?.val,
+          W: data.W?.val,
+          water_level: data.W?.val,
+        },
+      };
+      lastSensorCache.set(device_code, sensorData);
 
-        if (
-          [data.N?.val, data.P?.val, data.K?.val, data.W?.val].some(
-            (v) => v == null || v === -1
-          )
-        ) {
-          console.log("ค่าไม่ถูกต้อง")
-          return;
-        }
+      // Auto online + reset heartbeat เฉพาะข้อมูลจริง
+      const statusData = { device_code, status: "online", timestamp: new Date().toISOString() };
+      lastStatusCache.set(device_code, statusData);
 
-        const sensorData = {
-          device_code,
-          measured_at: new Date().toISOString(),
-          data: {
-            N: data.N?.val,
-            P: data.P?.val,
-            K: data.K?.val,
-            W: data.W?.val,
-            water_level: data.W?.val,
-          },
-        };
+      resetHeartbeat(device_code); // นับเฉพาะ sensor หรือ online จริง
 
-        lastSensorCache.set(device_code, sensorData);
+      io.to(`device:${device_code}`).emit("sensorData", sensorData);
+      io.to(`device:${device_code}`).emit("deviceStatus", statusData);
+      io.to("all-devices").emit("sensorData", sensorData);
+      io.to("all-devices").emit("deviceStatus", statusData);
 
-        const statusData = {
-          device_code,
-          status: "online",
-          timestamp: new Date().toISOString(),
-        };
-
-        lastStatusCache.set(device_code, statusData);
-
-        // Update Device Health Tracker on sensor data received
-        deviceHealthTracker.recordHeartbeat(device_code);
-
-        console.log("Saved to cache:", device_code);
-        console.log("CACHE KEYS:", [...lastSensorCache.keys()]);
-
-        io.to(`device:${device_code}`).emit("sensorData", sensorData);
-        io.to(`device:${device_code}`).emit("deviceStatus", statusData);
-
-        io.to("all-devices").emit("sensorData", sensorData);
-        io.to("all-devices").emit("deviceStatus", statusData);
-
-        await saveSensorData(data, device_code);
-        await analyzeSoilAndRice(
+      Promise.all([
+        saveSensorData(data, device_code),
+        analyzeSoilAndRice(
           sensorData.data.N,
           sensorData.data.P,
           sensorData.data.K,
+          payload.stage ?? payload.growth_stage ?? "",
           device_code
-        );
-        await checkAlerts(data, device_code);
-      }
-
-    } catch (err) {
-      console.error("MQTT Message Error:", err.message);
+        ),
+        checkAlerts(data, device_code)
+      ]).catch(err => console.error(err));
     }
   });
 
-  mqttClient.on("error", (err) => {
-    console.error("MQTT Error:", err.message);
-  });
+  mqttClient.on("error", (err) => console.error("MQTT Error:", err.message));
 }
-
 
 
 export const sendDeviceCommand_disconnect = (client, device_code) => {
@@ -235,9 +196,9 @@ export const sendDeviceCommand_PUMP_OFF_ON = (client, mac_address, cmd) => {
       { qos: 1, retain: true },
       (err) => {
         if (err) {
-          console.error(`❌ MQTT ERROR (${mac_address}):`, err.message);
+          console.error(` MQTT ERROR (${mac_address}):`, err.message);
         } else {
-          console.log(`✅ MQTT SENT [${cmd}] → ${mac_address}`);
+          console.log(`MQTT SENT [${cmd}] → ${mac_address}`);
         }
       }
     );

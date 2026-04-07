@@ -72,6 +72,7 @@ model Growth_Analysis {
   created_at              DateTime?            @default(now()) @db.DateTime(0)
   device_registrations_ID Int
   advice                  String?              @db.Text
+  link                    String?              @db.VarChar(255)
   type                    String?              @db.VarChar(50)
   confidence              Float?               @db.Float
   device_registrations    device_registrations @relation(fields: [device_registrations_ID], references: [device_registrations_ID], onDelete: Cascade, map: "Growth_Analysis_ibfk_1")
@@ -83,6 +84,7 @@ model Disease_Analysis {
   disease_id              Int                  @id @default(autoincrement())
   disease_name            String               @db.VarChar(100)
   confidence              Float?               @db.Float
+  link                    String?              @db.VarChar(255)
   image_url               String               @db.VarChar(255)
   advice                  String?              @db.Text
   created_at              DateTime?            @default(now()) @db.DateTime(0)

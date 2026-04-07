@@ -226,7 +226,7 @@ export default function (app) {
   app.post(
     "/api/admin/devices/capture",
     requireAuthMiddleware,
-    isAdmin,
+    // isAdmin,
     capture
   )
 

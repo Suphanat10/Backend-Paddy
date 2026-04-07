@@ -1,6 +1,6 @@
 // import cron from 'node-cron';
 // import { prisma } from "../../lib/prisma.js";
-// import { realtimeService } from "./realtimeService.js";
+
 
 // const startDeviceStatusMonitor = () => {
 
@@ -64,7 +64,7 @@
 //                 status = 'due';
 //             }
 
-//             realtimeService.notifyDeviceScheduleStatus(deviceCode, status, {
+
 //                 growth_period: period,
 //                 days_since_last: daysSinceLast,
 //                 days_remaining: daysSinceLast === null ? null : period - daysSinceLast
@@ -80,9 +80,9 @@
 
 //     setInterval(() => {
 
-//         const stats = realtimeService.getStats();
 
-//         realtimeService.emitSchedulerLog('heartbeat', {
+
+
 //             queue: stats.queue,
 //             health: stats.health
 //         });
@@ -116,7 +116,7 @@
 
 //         console.log("--- Scheduler Daily Check Started ---");
 
-//         realtimeService.notifySchedulerStart();
+
 
 //         try {
 
@@ -168,7 +168,7 @@
 
 //                 const period = reg.User_Settings?.[0]?.growth_analysis_period ?? 3;
 
-//                 realtimeService.notifyDeviceScheduleStatus(deviceCode, "checking", {
+
 //                     growth_period: period
 //                 });
 
@@ -215,13 +215,13 @@
 
 //                 if (shouldCapture) {
 
-//                     const result = await realtimeService.takePhoto(deviceCode);
+
 
 //                     if (result.success) {
 
 //                         queuedCount++;
 
-//                         realtimeService.notifyDeviceScheduleStatus(deviceCode, "queued", {
+
 //                             growth_period: period,
 //                             days_since_last: daysSinceLastAnalysis,
 //                             command_id: result.commandId
@@ -254,7 +254,7 @@
 
 //                     notDueCount++;
 
-//                     realtimeService.notifyDeviceScheduleStatus(deviceCode, "not_due", {
+
 //                         growth_period: period,
 //                         days_since_last: daysSinceLastAnalysis,
 //                         days_remaining: period - daysSinceLastAnalysis
@@ -274,7 +274,7 @@
 
 //             }
 
-//             realtimeService.notifySchedulerComplete({
+
 //                 total_devices: totalDevices,
 //                 queued: queuedCount,
 //                 not_due: notDueCount,
@@ -289,7 +289,7 @@
 
 //             console.error("Scheduler Error:", error);
 
-//             realtimeService.emitSchedulerLog("error", {
+
 //                 message: "Scheduler failure",
 //                 error: error.message
 //             });
@@ -308,7 +308,7 @@
 import cron from "node-cron";
 import pLimit from "p-limit";
 import { prisma } from "../../lib/prisma.js";
-import { realtimeService } from "./realtimeService.js";
+
 
 let schedulerTask = null;
 let currentCron = null;
@@ -402,7 +402,7 @@ const processDevice = async (dev, today) => {
         }
 
         if (shouldCapture) {
-            const result = await realtimeService.takePhoto(deviceCode);
+
             const status = result.success ? "queued" : "error";
             const message = result.success ? "Photo capture command queued" : result.reason;
 
@@ -433,7 +433,7 @@ const processDevice = async (dev, today) => {
         return "not_due";
 
     } catch (error) {
-        console.error(`❌ Process Error [${deviceCode}]:`, error.message);
+        console.error(`Process Error [${deviceCode}]:`, error.message);
         return "error";
     }
 };
@@ -446,7 +446,7 @@ const runSchedulerJob = async () => {
     isJobRunning = true;
 
     console.log("Scheduler Job Started");
-    realtimeService.notifySchedulerStart();
+
 
     try {
         const devices = await getActiveDevices();
@@ -463,7 +463,7 @@ const runSchedulerJob = async () => {
             errors: results.filter(r => r === "error").length
         };
 
-        realtimeService.notifySchedulerComplete(stats);
+
         console.log(`Job Completed:`, stats);
 
     } catch (error) {
@@ -482,6 +482,8 @@ const loadScheduler = async () => {
         if (!settings?.scheduler_time) return;
 
         const dateObj = new Date(settings.scheduler_time);
+
+
 
         // ใช้ getUTC เพื่อดึงเลข 13 และ 35 ออกมาตรงๆ จากฐานข้อมูล
         const hour = dateObj.getUTCHours();
@@ -512,16 +514,11 @@ const startDeviceStatusMonitor = () => {
     setInterval(async () => {
         const devices = await getActiveDevices();
         const today = new Date();
-
         devices.forEach(dev => {
             const daysSinceLast = dev.last_analysis ? getDiffDays(dev.last_analysis, today) : null;
             const status = (daysSinceLast === null || daysSinceLast >= dev.period) ? "due" : "not_due";
-
-            realtimeService.notifyDeviceScheduleStatus(dev.device_code, status, {
-                growth_period: dev.period,
-                days_since_last: daysSinceLast,
-                days_remaining: daysSinceLast === null ? 0 : dev.period - daysSinceLast
-            });
+            // สามารถเพิ่ม logic อื่น ๆ ได้ที่นี่ หากต้องการ
+            // ตัวอย่าง: console.log({ device: dev.device_code, status, growth_period: dev.period, days_since_last: daysSinceLast, days_remaining: daysSinceLast === null ? 0 : dev.period - daysSinceLast });
         });
     }, 30000);
 };

@@ -1,15 +1,15 @@
 import { type } from "node:os";
 import { prisma } from "../../lib/prisma.js";
 
+
 export const getDevicesByUser = async (req, res) => {
   try {
     const user_id = req.user?.id;
 
     if (!user_id) {
       return res.status(400).json({
-        success: false,
-        message: "User ID missing in token",
-        devices: []
+        message: "User ID missing",
+        data: []
       });
     }
 
@@ -18,14 +18,11 @@ export const getDevicesByUser = async (req, res) => {
       select: {
         device_registrations_ID: true,
         status: true,
-        registered_at: true,
 
         Device: {
           select: {
-            device_ID: true,
             device_code: true,
-            status: true,
-            created_at: true
+            status: true
           }
         },
 
@@ -35,45 +32,220 @@ export const getDevicesByUser = async (req, res) => {
             area_name: true,
             Farm: {
               select: {
-                farm_id: true,
                 farm_name: true,
                 address: true
               }
-            }
+            },
+            Pump: true
           }
         }
       }
     });
 
-    if (!devices || devices.length === 0) {
-      return res.status(200).json([]);
-    }
+    // 🔥 รวม pump ไม่ให้ซ้ำ
+    const pumpMap = new Map();
 
-    const result = devices.map(d => ({
-      id: d.Device?.device_code || null,
-      device_reg_id: d.device_registrations_ID,
-      status: d.status,
-      lastUpdate: null,
-      user_id: user_id,
+    devices.forEach(d => {
+      d.Area?.Pump?.forEach(p => {
+        pumpMap.set(p.pump_ID, {
+          pump_id: p.pump_ID,
+          name: p.pump_name,
+          mac: p.mac_address,
+          status: p.status
+        });
+      });
+    });
 
-      farm: d.Area?.Farm ? {
-        name: d.Area.Farm.farm_name,
-        location: d.Area.area_name,
-        address: d.Area.Farm.address
-      } : null,
+    const result = {
+      devices: devices.map(d => ({
+        id: d.Device?.device_code,
+        status: d.Device?.status,
+        farm: d.Area?.Farm?.farm_name,
+        area: d.Area?.area_name
+      })),
 
-      sensor: []
-    }));
+      // ✅ pump มีแค่ตัวเดียว
+      pumps: Array.from(pumpMap.values())
+    };
 
-    return res.status(200).json(result);
+    return res.json(result);
 
   } catch (error) {
-    console.error("❌ Error fetching devices:", error);
-
-    // ส่ง array ว่างเสมอเพื่อกันเว็บพัง
+    console.error(error);
     return res.status(500).json([]);
   }
 };
+
+// export const getDevicesByUser = async (req, res) => {
+//   try {
+//     const user_id = req.user?.id;
+
+//     if (!user_id) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "User ID missing in token",
+//         devices: []
+//       });
+//     }
+
+//     // const devices = await prisma.device_registrations.findMany({
+//     //   where: { user_ID: user_id },
+//     //   select: {
+//     //     device_registrations_ID: true,
+//     //     status: true,
+//     //     registered_at: true,
+
+//     //     Device: {
+//     //       select: {
+//     //         device_ID: true,
+//     //         device_code: true,
+//     //         status: true,
+//     //         created_at: true
+//     //       }
+//     //     },
+
+//     //     Area: {
+//     //       select: {
+//     //         area_id: true,
+//     //         area_name: true,
+//     //         Farm: {
+//     //           select: {
+//     //             farm_id: true,
+//     //             farm_name: true,
+//     //             address: true
+//     //           }
+//     //         }
+//     //       }
+//     //     }
+//     //   }
+//     // });
+
+//     const devices = await prisma.device_registrations.findMany({
+//       where: { user_ID: user_id },
+//       select: {
+//         device_registrations_ID: true,
+//         status: true,
+//         registered_at: true,
+
+//         Device: {
+//           select: {
+//             device_ID: true,
+//             device_code: true,
+//             status: true,
+//             created_at: true
+//           }
+//         },
+
+//         Area: {
+//           select: {
+//             area_id: true,
+//             area_name: true,
+
+//             // ✅ Pump ที่อยู่ใน Area นี้
+//             Pump: {
+//               select: {
+//                 pump_ID: true,
+//                 pump_name: true,
+//                 mac_address: true,
+//                 status: true,
+//                 created_at: true,
+//                 user_ID: true
+//               }
+//             },
+
+//             Farm: {
+//               select: {
+//                 farm_id: true,
+//                 farm_name: true,
+//                 address: true
+//               }
+//             }
+//           }
+//         },
+
+//         // ✅ Pump ของ user (กรณีไม่ได้ผูก area หรืออยากรู้ทั้งหมด)
+//         Account: {
+//           select: {
+//             Pump: {
+//               select: {
+//                 pump_ID: true,
+//                 pump_name: true,
+//                 mac_address: true,
+//                 status: true,
+//                 created_at: true,
+//                 area_id: true
+//               }
+//             }
+//           }
+//         }
+//       }
+//     });
+
+//     if (!devices || devices.length === 0) {
+//       return res.status(200).json([]);
+//     }
+
+//     // const result = devices.map(d => ({
+//     //   id: d.Device?.device_code || null,
+//     //   device_reg_id: d.device_registrations_ID,
+//     //   status: d.status,
+//     //   lastUpdate: null,
+//     //   user_id: user_id,
+
+//     //   farm: d.Area?.Farm ? {
+//     //     name: d.Area.Farm.farm_name,
+//     //     location: d.Area.area_name,
+//     //     address: d.Area.Farm.address
+//     //   } : null,
+
+//     //   sensor: []
+//     // }));
+
+//     const result = devices.map(d => ({
+//       id: d.Device?.device_code || null,
+//       device_reg_id: d.device_registrations_ID,
+//       status: d.status,
+//       lastUpdate: null,
+//       user_id: user_id,
+
+//       farm: d.Area?.Farm ? {
+//         name: d.Area.Farm.farm_name,
+//         location: d.Area.area_name,
+//         address: d.Area.Farm.address
+//       } : null,
+
+//       // ✅ รวม pump (เอาจาก Area เป็นหลัก)
+//       pumps: d.Area?.Pump?.map(p => ({
+//         pump_id: p.pump_ID,
+//         name: p.pump_name,
+//         mac: p.mac_address,
+//         status: p.status,
+//         created_at: p.created_at
+//       })) || [],
+
+//       // ✅ fallback: ถ้า area ไม่มี pump → ใช้ของ user
+//       ...((!d.Area?.Pump || d.Area.Pump.length === 0) && d.Account?.Pump ? {
+//         pumps: d.Account.Pump.map(p => ({
+//           pump_id: p.pump_ID,
+//           name: p.pump_name,
+//           mac: p.mac_address,
+//           status: p.status,
+//           created_at: p.created_at
+//         }))
+//       } : {}),
+
+//       sensor: []
+//     }));
+
+//     return res.status(200).json(result);
+
+//   } catch (error) {
+//     console.error("❌ Error fetching devices:", error);
+
+//     // ส่ง array ว่างเสมอเพื่อกันเว็บพัง
+//     return res.status(500).json([]);
+//   }
+// };
 
 
 
@@ -279,93 +451,212 @@ export const getdata_history = async (req, res) => {
   }
 }
 
+// export const GetData_devicebyID = async (req, res) => {
+//   try {
+//     const { device_code } = req.body;
+//     const user_id = req.user?.id;
+
+//     if (!device_code)
+//       return res.status(400).json({ message: "กรุณาระบุรหัสอุปกรณ์ (device_code)" });
+
+//     if (!user_id)
+//       return res.status(400).json({ message: "ไม่พบข้อมูลผู้ใช้" });
+
+//     const device = await prisma.Device.findFirst({
+//       where: { device_code }
+//     });
+
+//     if (!device)
+//       return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+
+//     const registration = await prisma.device_registrations.findFirst({
+//       where: { device_ID: device.device_ID },
+//       include: {
+//         Area: true,
+//         Account: true
+//       }
+//     });
+
+//     if (!registration)
+//       return res.status(404).json({ message: "อุปกรณ์ยังไม่ได้ลงทะเบียน" });
+
+//     if (registration.user_ID !== user_id)
+//       return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงอุปกรณ์นี้" });
+
+//     // 🔥 จำกัดย้อนหลัง 30 วัน (แก้เป็น 7 วันได้)
+//     const startDate = new Date();
+//     startDate.setDate(startDate.getDate() - 30);
+
+//     const permanentData = await prisma.Permanent_Data.findMany({
+//       where: {
+//         device_registrations_ID: registration.device_registrations_ID,
+//         measured_at: { gte: startDate }
+//       },
+//       include: { Sensor_Type: true },
+//       orderBy: { measured_at: "asc" } // ✅ เรียงถูกตั้งแต่ backend
+//     });
+
+//     if (!permanentData.length)
+//       return res.status(404).json({ message: "ยังไม่มีข้อมูลเซ็นเซอร์ของอุปกรณ์นี้" });
+
+//     // ✅ รวมข้อมูลตามวัน
+//     const grouped = {};
+
+//     permanentData.forEach(item => {
+//       const dateKey = item.measured_at.toISOString().split("T")[0];
+
+//       if (!grouped[dateKey]) {
+//         grouped[dateKey] = {
+//           timestamp: dateKey,
+//           time: new Date(dateKey).toLocaleDateString("th-TH", {
+//             day: "numeric",
+//             month: "short"
+//           }),
+//           N: null,
+//           P: null,
+//           K: null,
+//           S: null,
+//           W: null
+//         };
+//       }
+
+//       const key = item.Sensor_Type?.key;
+//       if (key) {
+//         grouped[dateKey][key] = item.value;
+//       }
+//     });
+
+//     const sensor_history = Object.values(grouped);
+
+//     const response = {
+//       device: {
+//         device_id: device.device_ID,
+//         device_code: device.device_code,
+//         status: registration.status,
+//         registered_at: registration.registered_at,
+//       },
+//       area: {
+//         id: registration.Area.area_id,
+//         name: registration.Area.area_name,
+//       },
+//       owner: {
+//         user_id: registration.Account.user_ID,
+//         first_name: registration.Account.first_name,
+//         last_name: registration.Account.last_name,
+//         email: registration.Account.email
+//       },
+//       sensor_history
+//     };
+
+//     return res.status(200).json(response);
+
+//   } catch (error) {
+//     console.error("Error GetData_devicebyID:", error);
+//     return res.status(500).json({ message: "Internal server error" });
+//   }
+// };
+
 export const GetData_devicebyID = async (req, res) => {
   try {
     const { device_code } = req.body;
     const user_id = req.user?.id;
 
-    if (!device_code)
-      return res.status(400).json({ message: "กรุณาระบุรหัสอุปกรณ์ (device_code)" });
+    if (!device_code) {
+      return res.status(400).json({ message: "กรุณาระบุ device_code" });
+    }
 
-    if (!user_id)
-      return res.status(400).json({ message: "ไม่พบข้อมูลผู้ใช้" });
+    if (!user_id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    const device = await prisma.Device.findFirst({
-      where: { device_code }
-    });
-
-    if (!device)
-      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
-
+    // ✅ หา device + registration ในครั้งเดียว
     const registration = await prisma.device_registrations.findFirst({
-      where: { device_ID: device.device_ID },
+      where: {
+        Device: { device_code },
+        user_ID: user_id
+      },
       include: {
+        Device: true,
         Area: true,
         Account: true
       }
     });
 
-    if (!registration)
-      return res.status(404).json({ message: "อุปกรณ์ยังไม่ได้ลงทะเบียน" });
+    if (!registration) {
+      return res.status(404).json({ message: "ไม่พบอุปกรณ์ หรือไม่มีสิทธิ์" });
+    }
 
-    if (registration.user_ID !== user_id)
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงอุปกรณ์นี้" });
+    // 🔥 ย้อนหลัง 30 วัน
 
-    // 🔥 จำกัดย้อนหลัง 30 วัน (แก้เป็น 7 วันได้)
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
 
     const permanentData = await prisma.Permanent_Data.findMany({
       where: {
         device_registrations_ID: registration.device_registrations_ID,
-        measured_at: { gte: startDate }
+
       },
       include: { Sensor_Type: true },
-      orderBy: { measured_at: "asc" } // ✅ เรียงถูกตั้งแต่ backend
+      orderBy: { measured_at: "asc" }
     });
 
-    if (!permanentData.length)
-      return res.status(404).json({ message: "ยังไม่มีข้อมูลเซ็นเซอร์ของอุปกรณ์นี้" });
+    if (!permanentData.length) {
+      return res.status(404).json({ message: "ไม่มีข้อมูลเซ็นเซอร์" });
+    }
 
-    // ✅ รวมข้อมูลตามวัน
+    // ✅ รวมข้อมูลแบบ "ค่าเฉลี่ยต่อวัน"
     const grouped = {};
 
     permanentData.forEach(item => {
-      const dateKey = item.measured_at.toISOString().split("T")[0];
+      // ✅ ใช้ timezone ไทย
+      const date = new Date(item.measured_at);
+      const dateKey = date.toLocaleDateString("sv-SE"); // YYYY-MM-DD
 
       if (!grouped[dateKey]) {
         grouped[dateKey] = {
           timestamp: dateKey,
-          time: new Date(dateKey).toLocaleDateString("th-TH", {
+          time: date.toLocaleDateString("th-TH", {
             day: "numeric",
             month: "short"
           }),
-          N: null,
-          P: null,
-          K: null,
-          S: null,
-          W: null
+          N: [],
+          P: [],
+          K: [],
+          S: [],
+          W: []
         };
       }
 
       const key = item.Sensor_Type?.key;
-      if (key) {
-        grouped[dateKey][key] = item.value;
+      if (key && grouped[dateKey][key]) {
+        grouped[dateKey][key].push(item.value);
       }
     });
 
-    const sensor_history = Object.values(grouped);
+    // ✅ แปลงเป็นค่าเฉลี่ย
+    const sensor_history = Object.values(grouped).map(day => {
+      const avg = arr =>
+        arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
 
-    const response = {
+      return {
+        timestamp: day.timestamp,
+        time: day.time,
+        N: avg(day.N),
+        P: avg(day.P),
+        K: avg(day.K),
+        S: avg(day.S),
+        W: avg(day.W)
+      };
+    });
+
+    return res.status(200).json({
       device: {
-        device_id: device.device_ID,
-        device_code: device.device_code,
+        device_id: registration.Device.device_ID,
+        device_code: registration.Device.device_code,
         status: registration.status,
-        registered_at: registration.registered_at,
+        registered_at: registration.registered_at
       },
       area: {
         id: registration.Area.area_id,
-        name: registration.Area.area_name,
+        name: registration.Area.area_name
       },
       owner: {
         user_id: registration.Account.user_ID,
@@ -374,15 +665,14 @@ export const GetData_devicebyID = async (req, res) => {
         email: registration.Account.email
       },
       sensor_history
-    };
-
-    return res.status(200).json(response);
+    });
 
   } catch (error) {
     console.error("Error GetData_devicebyID:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 export const getData_dashboard = async (req, res) => {
   try {
@@ -500,6 +790,7 @@ export const getdata_Growth_Analysis = async (req, res) => {
         growth_stage: ga.growth_stage,
         image_url: ga.image_url,
         type: ga.type,
+        Link: ga.link,
         confidence: ga.confidence,
         advice: ga.advice,
         created_at: ga.created_at,
@@ -510,6 +801,7 @@ export const getdata_Growth_Analysis = async (req, res) => {
         disease_name: ga.disease_name,
         image_url: ga.image_url,
         type: ga.type,
+        Link: ga.link,
         confidence: ga.confidence,
         advice: ga.advice,
         created_at: ga.created_at,
@@ -937,6 +1229,7 @@ export const getdata_Analysis = async (req, res) => {
             stage: latestValidGrowth.growth_stage,
             confidence: Math.round(latestValidGrowth.confidence * 100),
             advice: latestValidGrowth.advice,
+            link: latestValidGrowth.link,
             image_url: latestValidGrowth.image_url,
             date: new Date(latestValidGrowth.created_at).toLocaleString("th-TH", {
               timeZone: "Asia/Bangkok"
@@ -949,6 +1242,7 @@ export const getdata_Analysis = async (req, res) => {
             name: latestValidDisease.disease_name,
             confidence: Math.round(latestValidDisease.confidence * 100),
             status: "warning",
+            link: latestValidDisease.link,
             advice: latestValidDisease.advice,
             image_url: latestValidDisease.image_url,
             date: new Date(latestValidDisease.created_at).toLocaleString("th-TH", {
@@ -1025,6 +1319,7 @@ export const getdata_Analysis = async (req, res) => {
               stage: latestValidGrowth.growth_stage,
               image_url: latestValidGrowth.image_url,
               advice: latestValidGrowth.advice,
+              link: latestValidGrowth.link,
               progress: Math.round(latestValidGrowth.confidence * 100)
             }
           }),
@@ -1034,6 +1329,7 @@ export const getdata_Analysis = async (req, res) => {
               status: "warning",
               name: latestValidDisease.disease_name,
               advice: latestValidDisease.advice,
+              link: latestValidDisease.link,
               image_url: latestValidDisease.image_url
             }
           }),
@@ -1236,7 +1532,7 @@ export const getDataAdmin = async (req, res) => {
               ? {
                 data_send_interval_days: setting.data_send_interval_days,
                 water_level_min: setting.Water_level_min,
-                water_level_max: setting.Water_level_max, // 🔥 FIX TYPO
+                water_level_max: setting.Water_level_mxm,
                 growth_analysis_period: setting.growth_analysis_period
               }
               : null
@@ -1281,6 +1577,119 @@ export const getDataAdmin = async (req, res) => {
     });
   }
 };
+
+export const getdataTimeline = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { area_id } = req.body;
+    console.log(area_id)
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const devices = await prisma.device_registrations.findMany({
+      where: {
+        user_ID: userId,
+        ...(area_id && { area_id: Number(area_id) })
+      },
+      select: {
+        device_registrations_ID: true
+      }
+    });
+
+    const deviceIds = devices.map(d => d.device_registrations_ID);
+
+
+    if (deviceIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+
+    const MIN_CONFIDENCE = 0.7;
+
+    const growth = await prisma.growth_Analysis.findMany({
+      where: {
+        device_registrations_ID: { in: deviceIds },
+        confidence: {
+          gte: MIN_CONFIDENCE
+        }
+      },
+      select: {
+        analysis_id: true,
+        growth_stage: true,
+        image_url: true,
+        advice: true,
+        confidence: true,
+        created_at: true,
+        type: true,
+        device_registrations_ID: true
+      }
+    });
+
+    // 3. Disease (เอาเฉพาะที่เป็นโรคจริง + confidence ผ่าน)
+    const disease = await prisma.disease_Analysis.findMany({
+      where: {
+        device_registrations_ID: { in: deviceIds },
+        confidence: {
+          gte: MIN_CONFIDENCE
+        },
+        NOT: [
+          { disease_name: "healthy" },
+          { disease_name: "unknown" }
+        ]
+      },
+      select: {
+        disease_id: true,
+        disease_name: true,
+        image_url: true,
+        advice: true,
+        type: true,
+        confidence: true,
+        created_at: true,
+        device_registrations_ID: true
+      }
+    });
+
+    // 4. map
+    const growthTimeline = growth.map(item => ({
+      id: item.analysis_id,
+      type: "growth",
+      title: item.growth_stage,
+      description: item.advice,
+      image: item.image_url,
+      type_uplode: item.type,
+      confidence: item.confidence,
+      created_at: item.created_at
+    }));
+
+    const diseaseTimeline = disease.map(item => ({
+      id: item.disease_id,
+      type: "disease",
+      type_uplode: item.type,
+      title: item.disease_name,
+      description: item.advice,
+      image: item.image_url,
+      confidence: item.confidence,
+      created_at: item.created_at
+    }));
+
+    const timeline = [...growthTimeline, ...diseaseTimeline];
+
+    timeline.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return res.json({
+      success: true,
+      data: timeline
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server Error" });
+  }
+};
+
+
 // export const getDataAdmin = async (req, res) => {
 //   try {
 

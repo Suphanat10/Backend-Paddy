@@ -66,6 +66,11 @@ export const connectDevice = async (req, res) => {
       return res.status(400).json({ message: "ไม่พบอุปกรณ์" });
     }
 
+    if (device.status == "registered") {
+      return res.status(200).json({ message: "คำขอเปิดการเชื่อมต่อ Server สำเร็จ พบการลงทะเบียนเเล้ว " });
+    }
+
+
     const updated = await prisma.Device.update({
       where: {
         device_ID: device.device_ID
@@ -83,6 +88,35 @@ export const connectDevice = async (req, res) => {
   }
 };
 
+
+export const getAllDevices = async (req, res) => {
+  try {
+    const devices = await prisma.Device.findMany({
+      orderBy: {
+        device_ID: "desc"
+      }
+    });
+
+    const result = devices.map(d => ({
+      device_id: d.device_ID,
+      device_code: d.device_code,
+      status: d.status,
+
+      // ✅ เช็คจาก status
+      is_registered: d.status === "online",
+
+      last_seen: d.last_seen
+    }));
+
+    return res.status(200).json(result);
+
+  } catch (error) {
+    console.error("Get devices error:", error);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+  }
+};
 
 
 export const openPump = async (req, res) => {
@@ -258,6 +292,52 @@ const sendLineMessage = async (userId, messageText) => {
   }
 };
 
+
+
+const DISEASE_DATA = {
+  "โรคจุดสีน้ำตาล": {
+    th: "โรคจุดสีน้ำตาล",
+    link: "https://rkb.ricethailand.go.th/sys_file/uploads/2025122425-y1a1dg532k.pdf",
+  },
+  "ใบข้าวที่ดี": {
+    th: "ใบข้าวปกติ",
+    link: null,
+  },
+  "โรคไหม้ในข้าว": {
+    th: "โรคไหม้ในข้าว",
+    link: "https://esc.doae.go.th/%E0%B9%82%E0%B8%A3%E0%B8%84%E0%B9%84%E0%B8%AB%E0%B8%A1%E0%B9%89%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%A7-10/",
+  },
+  "โรคแมลงดำหนามข้าว": {
+    th: "แมลงดำหนามข้าว",
+    link: "https://esc.doae.go.th/%E0%B9%81%E0%B8%A1%E0%B8%A5%E0%B8%87%E0%B8%94%E0%B8%B3%E0%B8%AB%E0%B8%99%E0%B8%B2%E0%B8%A1%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%A7-2/",
+  },
+  "โรคกาบใบแห้ง": {
+    th: "โรคกาบใบแห้ง",
+    link: "https://esc.doae.go.th/%E0%B9%82%E0%B8%A3%E0%B8%84%E0%B8%81%E0%B8%B2%E0%B8%9A%E0%B9%83%E0%B8%9A%E0%B9%81%E0%B8%AB%E0%B9%89%E0%B8%87-2/",
+  },
+  "ไม่ผ่านเกณฑ์": {
+    th: "ไม่ผ่านเกณฑ์",
+    link: "",
+  },
+};
+
+
+const GROWTH_STAGE_DATA = {
+  "ระยะตั้งท้อง": {
+    link: "https://newwebs2.ricethailand.go.th/upload/doc/7376/1673236527.pdf"
+  },
+  "ระยะสุกแก่": {
+    link: "https://newwebs2.ricethailand.go.th/upload/doc/7376/1673236527.pdf"
+  },
+  "ระยะต้นกล้า": {
+    link: "https://newwebs2.ricethailand.go.th/upload/doc/7376/1673236527.pdf"
+  },
+  "ระยะออกรวง": {
+    link: "https://newwebs2.ricethailand.go.th/upload/doc/7376/1673236527.pdf"
+  },
+};
+
+
 export const analyze_image = async (req, res) => {
   const { Type, device_code, Usage } = req.body || {};
 
@@ -325,7 +405,7 @@ export const analyze_image = async (req, res) => {
       formData,
       {
         headers: formData.getHeaders(),
-        timeout: 60000,
+        timeout: 120000,
       }
     );
 
@@ -340,11 +420,14 @@ export const analyze_image = async (req, res) => {
       ? parseFloat(result.confidence)
       : 0;
 
+    let diseaseLink = null;
+    let diseaseNameTH = result.disease_name;
     // ================= SUCCESS =================
     if (result?.status === "success") {
 
       // ===== LINE =====
       if (targetUserId) {
+
         let lineText = `📢 รายงานผล (${Type})\n`;
         lineText += `📍 ${farmName} (${areaName})\n`;
         lineText += `🏠 ${farmAddress}\n`;
@@ -360,21 +443,28 @@ export const analyze_image = async (req, res) => {
 
       // ===== SAVE =====
       if (Type === "disease") {
+        const diseaseInfo = DISEASE_DATA[result.disease_name] || DISEASE_DATA["ไม่ผ่านเกณฑ์"];
+        diseaseNameTH = diseaseInfo.th;
+        diseaseLink = diseaseInfo.link;
         await prisma.Disease_Analysis.create({
           data: {
             disease_name: result.disease_name,
             confidence,
             image_url: publicUrl,
+            link: diseaseLink,
             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
             advice: result.advice,
             device_registrations_ID: registration.device_registrations_ID,
           },
         });
       } else {
+        const stageInfo = GROWTH_STAGE_DATA[result.prediction] || { link: null };
+        const stageLink = stageInfo.link
         await prisma.growth_Analysis.create({
           data: {
             growth_stage: result.prediction,
             image_url: publicUrl,
+            link: stageLink,
             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
             advice: result.advice || "ไม่มีคำแนะนำ",
             confidence,
@@ -403,6 +493,7 @@ export const analyze_image = async (req, res) => {
         },
       });
     } else {
+
       await prisma.growth_Analysis.create({
         data: {
           growth_stage: "ไม่ผ่านเกณฑ์",
@@ -428,6 +519,7 @@ export const analyze_image = async (req, res) => {
     });
   }
 };
+
 // export const analyze_image = async (req, res) => {
 //   const { Type, device_code, Usage } = req.body || {};
 

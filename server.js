@@ -14,7 +14,7 @@ import esp32Routes from "./app/routes/esp32.routes.js";
 
 import connectMQTT, { lastSensorCache, lastStatusCache } from "./app/service/mqtt.js";
 import initScheduler from "./app/service/scheduler.js"
-import { realtimeService } from "./app/service/realtimeService.js";
+
 
 
 
@@ -58,7 +58,7 @@ esp32Routes(app);
 
 connectMQTT(app, io);
 initScheduler();
-realtimeService.init(io);  // Initialize Realtime Service
+
 
 // ====== Memory Cache ======
 // const lastSensorCache = new Map();

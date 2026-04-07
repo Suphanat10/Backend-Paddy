@@ -353,7 +353,7 @@ export const registerDeviceToFarmArea = async (req, res) => {
         data: {
           device_registrations_ID: newRegistration.device_registrations_ID,
           data_send_interval_days: 1,
-          growth_analysis_period: 72,
+          growth_analysis_period: 7,
 
           Water_level_min: 10,
           Water_level_mxm: 15

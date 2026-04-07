@@ -185,6 +185,8 @@ const sendLineNotify = async (
 /* ===============================
    เช็คว่าแจ้งวันนี้หรือยัง
 =============================== */
+
+
 const hasAlertToday = async (deviceRegId, type) => {
   const result = await prisma.logs_Alert.findFirst({
     where: {

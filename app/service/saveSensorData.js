@@ -377,7 +377,7 @@ export const saveSensorData = async (data, device_code) => {
     });
 
     if (!device) {
-      console.log("❌ ไม่พบ Device:", device_code);
+      console.log("ไม่พบ Device:", device_code);
       return;
     }
 
@@ -391,7 +391,7 @@ export const saveSensorData = async (data, device_code) => {
     });
 
     if (!registration) {
-      console.log(`❌ ไม่พบ registration ที่ active: ${device_code}`);
+      console.log(`ไม่พบ registration ที่ active: ${device_code}`);
       return;
     }
 
@@ -403,7 +403,7 @@ export const saveSensorData = async (data, device_code) => {
     });
 
     if (!user_settings) {
-      console.log(`❌ ไม่พบ User settings: ${device_code}`);
+      console.log(` ไม่พบ User settings: ${device_code}`);
       return;
     }
 
@@ -436,7 +436,7 @@ export const saveSensorData = async (data, device_code) => {
       console.log(`[${device_code}] ผ่านมาแล้ว: ${diffDays} วัน | รอบบันทึก: ${intervalDays} วัน | เหลืออีก: ${Math.max(0, daysRemaining)} วัน`);
 
       if (diffDays < intervalDays) {
-        console.log(`⏳ [${device_code}] ยังไม่ถึงเวลา (เหลืออีก ${daysRemaining} วัน) → ไม่บันทึก`);
+        console.log(`[${device_code}] ยังไม่ถึงเวลา (เหลืออีก ${daysRemaining} วัน) → ไม่บันทึก`);
         return;
       }
     }
@@ -484,8 +484,8 @@ export const saveSensorData = async (data, device_code) => {
       },
     });
 
-    console.log(`✅ บันทึกข้อมูลสำเร็จ: ${device_code}`);
+    console.log(`บันทึกข้อมูลสำเร็จ: ${device_code}`);
   } catch (err) {
-    console.error("❌ saveSensorData error:", err.message);
+    console.error("saveSensorData error:", err.message);
   }
 };
