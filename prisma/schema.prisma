@@ -154,6 +154,7 @@ model Sensor_Type {
 model User_Settings {
   user_settings_ID        Int                  @id @default(autoincrement())
   data_send_interval_days Float                @db.Float
+  control_mode String @default("MANUAL") @db.VarChar(10)
   device_registrations_ID Int
   Water_level_min         Float?               @db.Float
   Water_level_mxm         Float                @default(0) @db.Float

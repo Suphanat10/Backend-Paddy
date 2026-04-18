@@ -1,6 +1,87 @@
 import { prisma } from "../../lib/prisma.js";
 import axios from "axios";
 
+export const Automatic_water_level = async (req, res) => {
+  try {
+    const { device_registrations_id, control_mode } = req.body;
+
+    if (!device_registrations_id) {
+      return res.status(400).json({ message: "device_registrations_ID required" });
+    }
+
+    if (!control_mode) {
+      return res.status(400).json({ message: "control_mode required" });
+    }
+
+
+    const device_registrations_ID = Number(device_registrations_id);
+
+    let targetMin, targetMax;
+
+    if (control_mode === "AUTO") {
+
+      const growth = await prisma.growth_Analysis.findFirst({
+        where: { device_registrations_ID },
+        orderBy: { created_at: "desc" }
+      });
+
+      const AUTO_WATER_LEVEL_BY_STAGE = {
+        "ระยะต้นกล้า": { min: 5, max: 10 },
+        "ระยะตั้งท้อง": { min: 10, max: 20 },
+        "ระยะออกรวง": { min: 5, max: 10 },
+        "ระยะสุกแก่": { min: 0, max: 5 },
+      };
+
+      if (growth && AUTO_WATER_LEVEL_BY_STAGE[growth.growth_stage]) {
+        targetMin = AUTO_WATER_LEVEL_BY_STAGE[growth.growth_stage].min;
+        targetMax = AUTO_WATER_LEVEL_BY_STAGE[growth.growth_stage].max;
+      } else {
+        targetMin = 5;
+        targetMax = 15;
+      }
+
+
+      if (isNaN(targetMin) || isNaN(targetMax)) {
+        return res.status(400).json({ message: "Invalid water level" });
+      }
+
+      await prisma.user_Settings.updateMany({
+        where: { device_registrations_ID },
+        data: {
+          Water_level_min: targetMin,
+          Water_level_mxm: targetMax,
+          control_mode: "AUTO"
+        }
+      });
+
+      return res.status(200).json({
+        message: "AUTO updated",
+        stage: growth?.growth_stage || "fallback",
+        targetMin,
+        targetMax
+      });
+    }
+
+    if (control_mode === "MANUAL") {
+      await prisma.user_Settings.updateMany({
+        where: { device_registrations_ID },
+        data: {
+          control_mode: "MANUAL"
+        }
+      });
+
+      return res.status(200).json({
+        message: "Switched to MANUAL"
+      });
+    }
+
+  } catch (error) {
+    console.error("AUTO WATER ERROR:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
 export const getdataSetting = async (req, res) => {
   try {
     const user_id = req.user?.id;
@@ -14,7 +95,7 @@ export const getdataSetting = async (req, res) => {
       include: {
         User_Settings: true,
         Permanent_Data: {
-          where: { sensor_type: 1 },
+          where: { sensor_type: 4 },
           orderBy: { measured_at: "desc" },
           take: 1,
           include: { Sensor_Type: true },

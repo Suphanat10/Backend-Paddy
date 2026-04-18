@@ -1,5 +1,5 @@
-import   { getdataSetting, updateSetting  }  from "../controllers/setting.controller.js";
-import { requireAuthMiddleware , iSESp32 } from "../middleware/authJwt.js";
+import { getdataSetting, updateSetting, Automatic_water_level } from "../controllers/setting.controller.js";
+import { requireAuthMiddleware, iSESp32 } from "../middleware/authJwt.js";
 
 export default function (app) {
   app.use(function (req, res, next) {
@@ -11,18 +11,24 @@ export default function (app) {
   });
 
 
-    app.get(
+  app.get(
     "/api/setting/data",
     requireAuthMiddleware,
     getdataSetting
   );
 
 
-    app.post(
+  app.post(
     "/api/setting/update",
     requireAuthMiddleware,
     updateSetting
   );
+
+  app.post(
+    "/api/setting/Automatic_water_level",
+    requireAuthMiddleware,
+    Automatic_water_level
+  )
 
 
 };

@@ -1,7 +1,7 @@
 import mqtt from "mqtt";
 import { saveSensorData } from "./saveSensorData.js";
 import { checkAlerts } from "./checkAlerts.js";
-import { setupCaptureSchedule} from "./takePhoto.js"
+import { setupCaptureSchedule } from "./takePhoto.js"
 import { prisma } from "../../lib/prisma.js";
 
 
@@ -10,7 +10,7 @@ import { prisma } from "../../lib/prisma.js";
 ================================ */
 const MQTT_HOST = "mqtt://broker.netpie.io";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "df438c1c-464b-406a-96c8-9f65c200197f";
+const CLIENT_ID = "df438c1c-464b-406a-96c8-9f65c2554151555515154180007f";
 const TOKEN = "3EsTLkcm5EgRHvspwY7rMpCUGZEHpFiZ";
 const SECRET = "vSdY3Kpo25RYNP7ZFQU5uECbTuuC5ZYc";
 
@@ -33,15 +33,15 @@ export default function connectMQTT(app, io) {
   const DATA_TOPIC = "@msg/paddy/data";
   const STATUS_TOPIC = "@msg/paddy/status";
 
- 
-  
+
+
   mqttClient.on("connect", () => {
     mqttClient.subscribe("@msg/paddy/#", (err) => {
       if (!err) {
-         console.log("Listening on @msg/paddy/#");
+        console.log("Listening on @msg/paddy/#");
       }
     });
-      setupCaptureSchedule(mqttClient);
+    setupCaptureSchedule(mqttClient);
 
   });
 
@@ -111,63 +111,63 @@ export default function connectMQTT(app, io) {
   });
 }
 
-export const sendDeviceCommand_disconnect= (client, device_code) => {
-    const CMD_TOPIC = `@msg/paddy/cmd/disconnect`;
-    const payload = JSON.stringify({
-        device_id: device_code,
-        type : "disconnect"
-    });
+export const sendDeviceCommand_disconnect = (client, device_code) => {
+  const CMD_TOPIC = `@msg/paddy/cmd/disconnect`;
+  const payload = JSON.stringify({
+    device_id: device_code,
+    type: "disconnect"
+  });
 
-    client.publish(CMD_TOPIC, payload, { qos: 1 }, (err) => {
-        if (err) {
-            console.error(`Failed to send command to ${device_code}:`, err.message);
-        } else {
-            console.log(`Command [disconnect] sent to ${device_code}`);
-        }
-    });
+  client.publish(CMD_TOPIC, payload, { qos: 1 }, (err) => {
+    if (err) {
+      console.error(`Failed to send command to ${device_code}:`, err.message);
+    } else {
+      console.log(`Command [disconnect] sent to ${device_code}`);
+    }
+  });
 };
 
 
 
-export const sendDeviceCommand_PUMP_OFF_ON= (client, mac_address , cmd) => {
-    const CMD_TOPIC = `@msg/paddy//cmd/pump`; // id อย่าลืม
-    let payload;
-     if(cmd === "OFF"){
-        payload = JSON.stringify({
-             pump: mac_address,
-            type : "pump_off"
-        });
-     }else if(cmd === "ON"){
-         payload = JSON.stringify({
-            pump: mac_address,
-            type : "pump_on"
-        });
-     }
-
-    client.publish(CMD_TOPIC, payload, { qos: 1 }, (err) => {
-        if (err) {
-            console.error(`Failed to send command to ${mac_address}:`, err.message);
-        } else {
-            console.log(`Command [pump] sent to ${mac_address}`);
-        }
+export const sendDeviceCommand_PUMP_OFF_ON = (client, mac_address, cmd) => {
+  const CMD_TOPIC = `@msg/paddy//cmd/pump`; // id อย่าลืม
+  let payload;
+  if (cmd === "OFF") {
+    payload = JSON.stringify({
+      pump: mac_address,
+      type: "pump_off"
     });
+  } else if (cmd === "ON") {
+    payload = JSON.stringify({
+      pump: mac_address,
+      type: "pump_on"
+    });
+  }
+
+  client.publish(CMD_TOPIC, payload, { qos: 1 }, (err) => {
+    if (err) {
+      console.error(`Failed to send command to ${mac_address}:`, err.message);
+    } else {
+      console.log(`Command [pump] sent to ${mac_address}`);
+    }
+  });
 };
 
 
-export const sendDeviceCommand_takePhoto= (client, device_code) => {
-    const CMD_TOPIC = `@msg/paddy/cmd/takePhoto`;   // id อย่าลืม
-    const payload = JSON.stringify({
-        device_id: device_code,
-        type : "takePhoto",
-    });
+export const sendDeviceCommand_takePhoto = (client, device_code) => {
+  const CMD_TOPIC = `@msg/paddy/cmd/takePhoto`;   // id อย่าลืม
+  const payload = JSON.stringify({
+    device_id: device_code,
+    type: "takePhoto",
+  });
 
-    client.publish(CMD_TOPIC, payload, { qos: 1 }, (err) => {
-        if (err) {
-            console.error(`Failed to send command to ${device_code}:`, err.message);
-        } else {
-            console.log(`Command [takePhoto] sent to ${device_code}`);
-        }
-    });
+  client.publish(CMD_TOPIC, payload, { qos: 1 }, (err) => {
+    if (err) {
+      console.error(`Failed to send command to ${device_code}:`, err.message);
+    } else {
+      console.log(`Command [takePhoto] sent to ${device_code}`);
+    }
+  });
 };
 
 

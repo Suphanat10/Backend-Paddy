@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import config from "../config/auth.config.js";
+import sharp from 'sharp';
+
 
 import axios from "axios";
 import FormData from "form-data";
@@ -338,162 +340,108 @@ const GROWTH_STAGE_DATA = {
 };
 
 
+
 export const analyze_image = async (req, res) => {
   const { Type, device_code, Usage } = req.body || {};
 
-  // ================= VALIDATE =================
-  if (!req.body) {
-    return res.status(400).json({ message: "ไม่มีข้อมูล body" });
-  }
-
-  if (!req.file) {
-    return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพ" });
-  }
+  if (!req.body) return res.status(400).json({ message: "ไม่มีข้อมูล body" });
+  if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพ" });
 
   const tempPath = req.file.path;
   const fileName = req.file.filename;
+  const baseName = path.parse(fileName).name;
 
   if (!device_code) {
     fs.unlinkSync(tempPath);
     return res.status(400).json({ message: "กรุณาระบุ device_code" });
   }
-
   if (!Type) {
     fs.unlinkSync(tempPath);
     return res.status(400).json({ message: "กรุณาระบุ Type" });
   }
 
-  // ================= MOVE FILE (เก็บถาวร) =================
   const finalPath = `uploads/${fileName}`;
   fs.renameSync(tempPath, finalPath);
-
   const publicUrl = `http://smart-paddy.space/uploads/${fileName}`;
 
   try {
     // ================= DEVICE =================
-    const device = await prisma.Device.findFirst({
-      where: { device_code },
-    });
+    const device = await prisma.Device.findFirst({ where: { device_code } });
+    if (!device) return res.status(400).json({ message: "ไม่พบ device_code" });
 
-    if (!device) {
-      return res.status(400).json({ message: "ไม่พบ device_code" });
-    }
-
-    // ================= REGISTRATION =================
     const registration = await prisma.device_registrations.findFirst({
-      where: {
-        Device: { device_code },
-        status: "active",
-      },
-      include: {
-        Account: true,
-        Area: { include: { Farm: true } },
-      },
+      where: { Device: { device_code }, status: "active" },
+      include: { Account: true, Area: { include: { Farm: true } } },
     });
-
-    if (!registration) {
-      return res.status(400).json({ message: "ไม่พบ registration" });
-    }
-
-    // ================= CALL AI =================
-    const formData = new FormData();
-    formData.append("data", fs.createReadStream(finalPath));
-    formData.append("Type", Type);
-
-    const response = await axios.post(
-      "https://n8n.smart-paddy.space/webhook/35fa8b5a-ecde-497c-97ed-a63ea65c2ac6",
-      formData,
-      {
-        headers: formData.getHeaders(),
-        timeout: 120000,
-      }
-    );
-
-    const result = response.data;
+    if (!registration) return res.status(400).json({ message: "ไม่พบ registration" });
 
     const targetUserId = registration?.Account?.user_id_line;
     const areaName = registration?.Area?.area_name || "ไม่ระบุพื้นที่";
     const farmName = registration?.Area?.Farm?.farm_name || "ไม่ระบุฟาร์ม";
     const farmAddress = registration?.Area?.Farm?.address || "ไม่ระบุที่อยู่";
 
-    const confidence = Number.isFinite(Number(result?.confidence))
-      ? parseFloat(result.confidence)
-      : 0;
+    // ================= GROWTH =================
+    if (Type === "growth") {
+      const imageBuffer = fs.readFileSync(finalPath);
 
-    let diseaseLink = null;
-    let diseaseNameTH = result.disease_name;
-    // ================= SUCCESS =================
-    if (result?.status === "success") {
+      const formData = new FormData();
+      formData.append("data", imageBuffer, {
+        filename: fileName,
+        contentType: "image/jpeg",
+      });
+      formData.append("Type", Type);
 
-      // ===== LINE =====
-      if (targetUserId) {
+      let result = null;
+      try {
+        const response = await axios.post(
+          "https://n8n.smart-paddy.space/webhook/api/analyze_image",
+          formData,
+          { headers: formData.getHeaders(), timeout: 120000 }
+        );
 
-        let lineText = `📢 รายงานผล (${Type})\n`;
-        lineText += `📍 ${farmName} (${areaName})\n`;
-        lineText += `🏠 ${farmAddress}\n`;
+        result = Array.isArray(response.data)
+          ? response.data[0]
+          : response.data;
 
-        if (Type === "disease") {
-          lineText += `📌 พบ: ${result.disease_name}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
-        } else {
-          lineText += `🌱 ระยะ: ${result.prediction}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
-        }
-
-        await sendLineMessage(targetUserId, lineText, publicUrl);
+      } catch (err) {
+        console.error("growth AI call failed:", err.message);
       }
 
-      // ===== SAVE =====
-      if (Type === "disease") {
-        const diseaseInfo = DISEASE_DATA[result.disease_name] || DISEASE_DATA["ไม่ผ่านเกณฑ์"];
-        diseaseNameTH = diseaseInfo.th;
-        diseaseLink = diseaseInfo.link;
-        await prisma.Disease_Analysis.create({
-          data: {
-            disease_name: result.disease_name,
-            confidence,
-            image_url: publicUrl,
-            link: diseaseLink,
-            type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
-            advice: result.advice,
-            device_registrations_ID: registration.device_registrations_ID,
-          },
-        });
-      } else {
+      const confidence = Number.isFinite(Number(result?.confidence))
+        ? parseFloat(result.confidence)
+        : 0;
+
+      if (result?.status === "success") {
+        if (targetUserId) {
+          let lineText = `📢 รายงานผล (growth)\n`;
+          lineText += `📍 ${farmName} (${areaName})\n`;
+          lineText += `🏠 ${farmAddress}\n`;
+          lineText += `🌱 ระยะ: ${result.prediction}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
+          await sendLineMessage(targetUserId, lineText, publicUrl);
+        }
+
         const stageInfo = GROWTH_STAGE_DATA[result.prediction] || { link: null };
-        const stageLink = stageInfo.link
+
         await prisma.growth_Analysis.create({
           data: {
             growth_stage: result.prediction,
             image_url: publicUrl,
-            link: stageLink,
+            link: stageInfo.link,
             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
             advice: result.advice || "ไม่มีคำแนะนำ",
             confidence,
             device_registrations_ID: registration.device_registrations_ID,
           },
         });
+
+        return res.status(200).json({
+          message: "วิเคราะห์สำเร็จ",
+          imageUrl: publicUrl,
+          analysisResult: result,
+        });
       }
 
-      return res.status(200).json({
-        message: "วิเคราะห์สำเร็จ",
-        imageUrl: publicUrl,
-        analysisResult: result,
-      });
-    }
-
-    // ================= FAIL (แต่เก็บรูป) =================
-    if (Type === "disease") {
-      await prisma.Disease_Analysis.create({
-        data: {
-          disease_name: "ไม่ผ่านเกณฑ์",
-          confidence: null,
-          image_url: publicUrl,
-          type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
-          advice: null,
-          device_registrations_ID: registration.device_registrations_ID,
-        },
-      });
-    } else {
-
+      // FAIL
       await prisma.growth_Analysis.create({
         data: {
           growth_stage: "ไม่ผ่านเกณฑ์",
@@ -504,21 +452,803 @@ export const analyze_image = async (req, res) => {
           device_registrations_ID: registration.device_registrations_ID,
         },
       });
+
+      return res.status(422).json({
+        message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
+        reason: result?.reason || "Unknown",
+      });
     }
+
+    // ================= DISEASE =================
+    const cols = 3, rows = 3, overlap = 0.2;
+    const imageBuffer = fs.readFileSync(finalPath);
+    const metadata = await sharp(imageBuffer).metadata();
+    const { width, height } = metadata;
+
+    const cellWidth = Math.floor(width / (cols - (cols - 1) * overlap));
+    const cellHeight = Math.floor(height / (rows - (rows - 1) * overlap));
+    const stepX = Math.floor(cellWidth * (1 - overlap));
+    const stepY = Math.floor(cellHeight * (1 - overlap));
+
+    const cropDir = `uploads/crops/${baseName}`;
+    if (!fs.existsSync(cropDir)) fs.mkdirSync(cropDir, { recursive: true });
+
+    const crops = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const left = Math.min(c * stepX, width - cellWidth);
+        const top = Math.min(r * stepY, height - cellHeight);
+
+        const cropName = `${baseName}_row${r + 1}_col${c + 1}.png`;
+        const cropPath = `${cropDir}/${cropName}`;
+        const cropUrl = `http://smart-paddy.space/uploads/crops/${baseName}/${cropName}`;
+
+        await sharp(imageBuffer)
+          .extract({ left, top, width: cellWidth, height: cellHeight })
+          .toFile(cropPath);
+
+        const buffer = await sharp(imageBuffer)
+          .extract({ left, top, width: cellWidth, height: cellHeight })
+          .toBuffer();
+
+        crops.push({ name: `row${r + 1}_col${c + 1}`, buffer, cropPath, cropUrl });
+      }
+    }
+
+    // ===== ส่งครบ 9 =====
+    const analysisResults = [];
+
+    for (const crop of crops) {
+      const formData = new FormData();
+      formData.append("data", crop.buffer, {
+        filename: `${crop.name}.png`,
+        contentType: "image/png",
+      });
+      formData.append("Type", Type);
+
+      try {
+        const response = await axios.post(
+          "https://n8n.smart-paddy.space/webhook/api/analyze_image",
+          formData,
+          { headers: formData.getHeaders(), timeout: 120000 }
+        );
+
+        const result = Array.isArray(response.data)
+          ? response.data[0]
+          : response.data;
+
+        analysisResults.push({
+          cell: crop.name,
+          cropUrl: crop.cropUrl,
+          result,
+        });
+
+      } catch (err) {
+        console.error(`crop ${crop.name} failed:`, err.message);
+        analysisResults.push({
+          cell: crop.name,
+          cropUrl: crop.cropUrl,
+          result: null,
+        });
+      }
+    }
+
+    // ===== เลือก BEST =====
+    const successResults = analysisResults.filter(r => r.result?.status === "success");
+
+    const diseaseResults = successResults.filter(r =>
+      r.result?.disease_name !== "ใบข้าวที่ดี"
+    );
+
+    let best = null;
+
+    if (diseaseResults.length > 0) {
+      best = diseaseResults.sort((a, b) =>
+        (b.result.confidence || 0) - (a.result.confidence || 0)
+      )[0];
+    } else if (successResults.length > 0) {
+      best = successResults.sort((a, b) =>
+        (b.result.confidence || 0) - (a.result.confidence || 0)
+      )[0];
+    }
+
+    const foundResult = best?.result || null;
+    const foundCropUrl = best?.cropUrl || null;
+
+    // ===== ลบ crop ที่ไม่ใช้ =====
+    const usedCropPath = crops.find(c => c.cropUrl === foundCropUrl)?.cropPath;
+
+    for (const crop of crops) {
+      if (crop.cropPath !== usedCropPath) {
+        try {
+          fs.unlinkSync(crop.cropPath);
+        } catch { }
+      }
+    }
+
+    const confidence = Number.isFinite(Number(foundResult?.confidence))
+      ? parseFloat(foundResult.confidence)
+      : 0;
+
+    // ===== SUCCESS =====
+    if (foundResult?.status === "success") {
+      if (targetUserId) {
+        let lineText = `📢 รายงานผล (disease)\n`;
+        lineText += `📍 ${farmName} (${areaName})\n`;
+        lineText += `🏠 ${farmAddress}\n`;
+        lineText += `📌 พบ: ${foundResult.disease_name}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${foundResult.advice}`;
+        await sendLineMessage(targetUserId, lineText, foundCropUrl);
+      }
+
+      const diseaseInfo = DISEASE_DATA[foundResult.disease_name] || DISEASE_DATA["ไม่ผ่านเกณฑ์"];
+
+      await prisma.Disease_Analysis.create({
+        data: {
+          disease_name: foundResult.disease_name,
+          confidence,
+          image_url: foundCropUrl,
+          link: diseaseInfo.link,
+          type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+          advice: foundResult.advice,
+          device_registrations_ID: registration.device_registrations_ID,
+        },
+      });
+
+      return res.status(200).json({
+        message: "วิเคราะห์สำเร็จ",
+        imageUrl: publicUrl,
+        bestCropUrl: foundCropUrl,
+        analysisResult: foundResult,
+        allCells: analysisResults,
+      });
+    }
+
+    // ===== FAIL =====
+    await prisma.Disease_Analysis.create({
+      data: {
+        disease_name: "ไม่ผ่านเกณฑ์",
+        confidence: null,
+        image_url: publicUrl,
+        type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+        advice: null,
+        device_registrations_ID: registration.device_registrations_ID,
+      },
+    });
 
     return res.status(422).json({
       message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
-      reason: result?.reason || "Unknown",
+      reason: "ไม่พบโรคในทุก crop",
+      allCells: analysisResults,
     });
 
   } catch (error) {
-    console.error(" analyze_image error:", error.message);
+    console.error("analyze_image error:", error.message);
     return res.status(500).json({
       message: "ระบบวิเคราะห์ล้มเหลว",
-      error: error.message,
+      error: error.message
     });
   }
 };
+
+
+// export const analyze_image = async (req, res) => {
+//   const { Type, device_code, Usage } = req.body || {};
+
+//   if (!req.body) return res.status(400).json({ message: "ไม่มีข้อมูล body" });
+//   if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพ" });
+
+//   const tempPath = req.file.path;
+//   const fileName = req.file.filename;
+//   const baseName = path.parse(fileName).name;
+
+//   if (!device_code) { fs.unlinkSync(tempPath); return res.status(400).json({ message: "กรุณาระบุ device_code" }); }
+//   if (!Type) { fs.unlinkSync(tempPath); return res.status(400).json({ message: "กรุณาระบุ Type" }); }
+
+//   // ================= MOVE FILE (รูปต้นฉบับ) =================
+//   const finalPath = `uploads/${fileName}`;
+//   fs.renameSync(tempPath, finalPath);
+//   const publicUrl = `http://smart-paddy.space/uploads/${fileName}`;
+
+//   try {
+//     // ================= DEVICE =================
+//     const device = await prisma.Device.findFirst({ where: { device_code } });
+//     if (!device) return res.status(400).json({ message: "ไม่พบ device_code" });
+
+//     const registration = await prisma.device_registrations.findFirst({
+//       where: { Device: { device_code }, status: "active" },
+//       include: { Account: true, Area: { include: { Farm: true } } },
+//     });
+//     if (!registration) return res.status(400).json({ message: "ไม่พบ registration" });
+
+//     const targetUserId = registration?.Account?.user_id_line;
+//     const areaName = registration?.Area?.area_name || "ไม่ระบุพื้นที่";
+//     const farmName = registration?.Area?.Farm?.farm_name || "ไม่ระบุฟาร์ม";
+//     const farmAddress = registration?.Area?.Farm?.address || "ไม่ระบุที่อยู่";
+
+//     // ================= GROWTH: ไม่ crop ส่งรูปเต็มตรงๆ =================
+//     if (Type === "growth") {
+//       const imageBuffer = fs.readFileSync(finalPath);
+
+//       const formData = new FormData();
+//       formData.append("data", imageBuffer, {
+//         filename: fileName,
+//         contentType: "image/jpeg",
+//       });
+//       formData.append("Type", Type);
+
+//       let result = null;
+//       try {
+//         const response = await axios.post(
+//           "https://n8n.smart-paddy.space/webhook/api/analyze_image",
+//           formData,
+//           { headers: formData.getHeaders(), timeout: 120000 }
+//         );
+//         result = response.data;
+//       } catch (err) {
+//         console.error("growth AI call failed:", err.message);
+//       }
+
+//       const confidence = Number.isFinite(Number(result?.confidence))
+//         ? parseFloat(result.confidence) : 0;
+
+//       if (result?.status === "success") {
+//         if (targetUserId) {
+//           let lineText = `📢 รายงานผล (growth)\n`;
+//           lineText += `📍 ${farmName} (${areaName})\n`;
+//           lineText += `🏠 ${farmAddress}\n`;
+//           lineText += `🌱 ระยะ: ${result.prediction}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
+//           await sendLineMessage(targetUserId, lineText, publicUrl);
+//         }
+
+//         const stageInfo = GROWTH_STAGE_DATA[result.prediction] || { link: null };
+//         await prisma.growth_Analysis.create({
+//           data: {
+//             growth_stage: result.prediction,
+//             image_url: publicUrl,
+//             link: stageInfo.link,
+//             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//             advice: result.advice || "ไม่มีคำแนะนำ",
+//             confidence,
+//             device_registrations_ID: registration.device_registrations_ID,
+//           },
+//         });
+
+//         return res.status(200).json({
+//           message: "วิเคราะห์สำเร็จ",
+//           imageUrl: publicUrl,
+//           analysisResult: result,
+//         });
+//       }
+
+//       // growth fail
+//       await prisma.growth_Analysis.create({
+//         data: {
+//           growth_stage: "ไม่ผ่านเกณฑ์",
+//           image_url: publicUrl,
+//           crop_url: null,
+//           type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//           advice: null,
+//           confidence: null,
+//           device_registrations_ID: registration.device_registrations_ID,
+//         },
+//       });
+
+//       return res.status(422).json({
+//         message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
+//         reason: result?.reason || "Unknown",
+//       });
+//     }
+
+//     // ================= DISEASE: crop 3x3 + วนส่งทีละรูป หยุดทันทีเมื่อเจอโรค =================
+//     const cols = 3, rows = 3, overlap = 0.2;
+//     const imageBuffer = fs.readFileSync(finalPath);
+//     const metadata = await sharp(imageBuffer).metadata();
+//     const { width, height } = metadata;
+
+//     const cellWidth = Math.floor(width / (cols - (cols - 1) * overlap));
+//     const cellHeight = Math.floor(height / (rows - (rows - 1) * overlap));
+//     const stepX = Math.floor(cellWidth * (1 - overlap));
+//     const stepY = Math.floor(cellHeight * (1 - overlap));
+
+//     const cropDir = `uploads/crops/${baseName}`;
+//     if (!fs.existsSync(cropDir)) fs.mkdirSync(cropDir, { recursive: true });
+
+//     const crops = [];
+//     for (let r = 0; r < rows; r++) {
+//       for (let c = 0; c < cols; c++) {
+//         const left = Math.min(c * stepX, width - cellWidth);
+//         const top = Math.min(r * stepY, height - cellHeight);
+//         const cropName = `${baseName}_row${r + 1}_col${c + 1}.png`;
+//         const cropPath = `${cropDir}/${cropName}`;
+//         const cropUrl = `http://smart-paddy.space/uploads/crops/${baseName}/${cropName}`;
+
+//         await sharp(imageBuffer)
+//           .extract({ left, top, width: cellWidth, height: cellHeight })
+//           .toFile(cropPath);
+
+//         const buffer = await sharp(imageBuffer)
+//           .extract({ left, top, width: cellWidth, height: cellHeight })
+//           .toBuffer();
+
+//         crops.push({ name: `row${r + 1}_col${c + 1}`, buffer, cropPath, cropUrl });
+//       }
+//     }
+
+//     // วนส่งทีละ crop — หยุดทันทีเมื่อเจอโรค (status === "success")
+//     let foundResult = null;
+//     let foundCropUrl = null;
+//     const analysisResults = [];
+
+//     for (const crop of crops) {
+//       const formData = new FormData();
+//       formData.append("data", crop.buffer, {
+//         filename: `${crop.name}.png`,
+//         contentType: "image/png",
+//       });
+//       formData.append("Type", Type);
+//       formData.append("cell_name", crop.name);
+//       formData.append("crop_url", crop.cropUrl);
+
+//       try {
+//         const response = await axios.post(
+//           "https://n8n.smart-paddy.space/webhook/api/analyze_image",
+//           formData,
+//           { headers: formData.getHeaders(), timeout: 120000 }
+//         );
+
+//         const result = Array.isArray(response.data)
+//           ? response.data[0]
+//           : response.data;
+//         analysisResults.push({ cell: crop.name, cropUrl: crop.cropUrl, result });
+
+//         // ✅ เจอโรคแล้ว — หยุดวนทันที
+//         if (result?.status === "success") {
+//           foundResult = result;
+//           foundCropUrl = crop.cropUrl;
+//           break;
+//         }
+
+//       } catch (err) {
+//         console.error(`crop ${crop.name} failed:`, err.message);
+//         analysisResults.push({ cell: crop.name, cropUrl: crop.cropUrl, result: null });
+//       }
+//     }
+
+//     const usedCropPath = crops.find(c => c.cropUrl === foundCropUrl)?.cropPath;
+
+//     // ลบ crop อื่น ๆ
+//     for (const crop of crops) {
+//       if (crop.cropPath !== usedCropPath) {
+//         try {
+//           fs.unlinkSync(crop.cropPath);
+//         } catch (err) {
+//           console.error("ลบไฟล์ไม่สำเร็จ:", crop.cropPath);
+//         }
+//       }
+//     }
+
+//     const confidence = Number.isFinite(Number(foundResult?.confidence))
+//       ? parseFloat(foundResult.confidence) : 0;
+
+//     // ================= DISEASE SUCCESS =================
+//     if (foundResult?.status === "success") {
+//       if (targetUserId) {
+//         let lineText = `📢 รายงานผล (disease)\n`;
+//         lineText += `📍 ${farmName} (${areaName})\n`;
+//         lineText += `🏠 ${farmAddress}\n`;
+//         lineText += `📌 พบ: ${foundResult.disease_name}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${foundResult.advice}`;
+//         await sendLineMessage(targetUserId, lineText, foundCropUrl);
+//       }
+
+//       const diseaseInfo = DISEASE_DATA[foundResult.disease_name] || DISEASE_DATA["ไม่ผ่านเกณฑ์"];
+//       await prisma.Disease_Analysis.create({
+//         data: {
+//           disease_name: foundResult.disease_name,
+//           confidence,
+//           image_url: foundCropUrl,
+//           link: diseaseInfo.link,
+//           type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//           advice: foundResult.advice,
+//           device_registrations_ID: registration.device_registrations_ID,
+//         },
+//       });
+
+//       return res.status(200).json({
+//         message: "วิเคราะห์สำเร็จ",
+//         imageUrl: publicUrl,
+//         bestCropUrl: foundCropUrl,
+//         analysisResult: foundResult,
+//         allCells: analysisResults,
+//       });
+//     }
+
+//     // ================= DISEASE FAIL (วนครบ 9 รูปแล้วไม่เจอโรค) =================
+//     await prisma.Disease_Analysis.create({
+//       data: {
+//         disease_name: "ไม่ผ่านเกณฑ์",
+//         confidence: null,
+//         image_url: foundCropUrl,
+//         crop_url: null,
+//         type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//         advice: null,
+//         device_registrations_ID: registration.device_registrations_ID,
+//       },
+//     });
+
+//     return res.status(422).json({
+//       message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
+//       reason: "ไม่พบโรคในทุก crop",
+//       allCells: analysisResults,
+//     });
+
+//   } catch (error) {
+//     console.error("analyze_image error:", error.message);
+//     return res.status(500).json({ message: "ระบบวิเคราะห์ล้มเหลว", error: error.message });
+//   }
+// };
+
+// export const analyze_image = async (req, res) => {
+//   const { Type, device_code, Usage } = req.body || {};
+
+//   // ================= VALIDATE =================
+//   if (!req.body) {
+//     return res.status(400).json({ message: "ไม่มีข้อมูล body" });
+//   }
+
+//   if (!req.file) {
+//     return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพ" });
+//   }
+
+//   const tempPath = req.file.path;
+//   const fileName = req.file.filename;
+
+//   if (!device_code) {
+//     fs.unlinkSync(tempPath);
+//     return res.status(400).json({ message: "กรุณาระบุ device_code" });
+//   }
+
+//   if (!Type) {
+//     fs.unlinkSync(tempPath);
+//     return res.status(400).json({ message: "กรุณาระบุ Type" });
+//   }
+
+//   // ================= MOVE FILE (เก็บถาวร) =================
+//   const finalPath = `uploads/${fileName}`;
+//   fs.renameSync(tempPath, finalPath);
+
+//   const publicUrl = `http://smart-paddy.space/uploads/${fileName}`;
+
+//   try {
+//     // ================= DEVICE =================
+//     const device = await prisma.Device.findFirst({
+//       where: { device_code },
+//     });
+
+//     if (!device) {
+//       return res.status(400).json({ message: "ไม่พบ device_code" });
+//     }
+
+//     // ================= REGISTRATION =================
+//     const registration = await prisma.device_registrations.findFirst({
+//       where: {
+//         Device: { device_code },
+//         status: "active",
+//       },
+//       include: {
+//         Account: true,
+//         Area: { include: { Farm: true } },
+//       },
+//     });
+
+//     if (!registration) {
+//       return res.status(400).json({ message: "ไม่พบ registration" });
+//     }
+
+//     // ================= CALL AI =================
+//     const formData = new FormData();
+//     formData.append("data", fs.createReadStream(finalPath));
+//     formData.append("Type", Type);
+
+//     const response = await axios.post(
+//       "https://n8n.smart-paddy.space/webhook-test/35fa8b5a-ecde-497c-97ed-a63ea65c2ac",
+//       formData,
+//       {
+//         headers: formData.getHeaders(),
+//         timeout: 120000,
+//       }
+//     );
+
+//     const result = response.data;
+
+//     const targetUserId = registration?.Account?.user_id_line;
+//     const areaName = registration?.Area?.area_name || "ไม่ระบุพื้นที่";
+//     const farmName = registration?.Area?.Farm?.farm_name || "ไม่ระบุฟาร์ม";
+//     const farmAddress = registration?.Area?.Farm?.address || "ไม่ระบุที่อยู่";
+
+//     const confidence = Number.isFinite(Number(result?.confidence))
+//       ? parseFloat(result.confidence)
+//       : 0;
+
+//     let diseaseLink = null;
+//     let diseaseNameTH = result.disease_name;
+//     // ================= SUCCESS =================
+//     if (result?.status === "success") {
+
+//       // ===== LINE =====
+//       if (targetUserId) {
+
+//         let lineText = `📢 รายงานผล (${Type})\n`;
+//         lineText += `📍 ${farmName} (${areaName})\n`;
+//         lineText += `🏠 ${farmAddress}\n`;
+
+//         if (Type === "disease") {
+//           lineText += `📌 พบ: ${result.disease_name}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
+//         } else {
+//           lineText += `🌱 ระยะ: ${result.prediction}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
+//         }
+
+//         await sendLineMessage(targetUserId, lineText, publicUrl);
+//       }
+
+//       // ===== SAVE =====
+//       if (Type === "disease") {
+//         const diseaseInfo = DISEASE_DATA[result.disease_name] || DISEASE_DATA["ไม่ผ่านเกณฑ์"];
+//         diseaseNameTH = diseaseInfo.th;
+//         diseaseLink = diseaseInfo.link;
+//         await prisma.Disease_Analysis.create({
+//           data: {
+//             disease_name: result.disease_name,
+//             confidence,
+//             image_url: publicUrl,
+//             link: diseaseLink,
+//             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//             advice: result.advice,
+//             device_registrations_ID: registration.device_registrations_ID,
+//           },
+//         });
+//       } else {
+//         const stageInfo = GROWTH_STAGE_DATA[result.prediction] || { link: null };
+//         const stageLink = stageInfo.link
+//         await prisma.growth_Analysis.create({
+//           data: {
+//             growth_stage: result.prediction,
+//             image_url: publicUrl,
+//             link: stageLink,
+//             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//             advice: result.advice || "ไม่มีคำแนะนำ",
+//             confidence,
+//             device_registrations_ID: registration.device_registrations_ID,
+//           },
+//         });
+//       }
+
+//       return res.status(200).json({
+//         message: "วิเคราะห์สำเร็จ",
+//         imageUrl: publicUrl,
+//         analysisResult: result,
+//       });
+//     }
+
+//     // ================= FAIL (แต่เก็บรูป) =================
+//     if (Type === "disease") {
+//       await prisma.Disease_Analysis.create({
+//         data: {
+//           disease_name: "ไม่ผ่านเกณฑ์",
+//           confidence: null,
+//           image_url: publicUrl,
+//           type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//           advice: null,
+//           device_registrations_ID: registration.device_registrations_ID,
+//         },
+//       });
+//     } else {
+
+//       await prisma.growth_Analysis.create({
+//         data: {
+//           growth_stage: "ไม่ผ่านเกณฑ์",
+//           image_url: publicUrl,
+//           type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//           advice: null,
+//           confidence: null,
+//           device_registrations_ID: registration.device_registrations_ID,
+//         },
+//       });
+//     }
+
+//     return res.status(422).json({
+//       message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
+//       reason: result?.reason || "Unknown",
+//     });
+
+//   } catch (error) {
+//     console.error(" analyze_image error:", error.message);
+//     return res.status(500).json({
+//       message: "ระบบวิเคราะห์ล้มเหลว",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+// import sharp from 'sharp';
+
+// export const analyze_image = async (req, res) => {
+//   const { Type, device_code, Usage } = req.body || {};
+
+//   if (!req.body) return res.status(400).json({ message: "ไม่มีข้อมูล body" });
+//   if (!req.file) return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพ" });
+
+//   const tempPath = req.file.path;
+//   const fileName = req.file.filename;
+
+//   if (!device_code) { fs.unlinkSync(tempPath); return res.status(400).json({ message: "กรุณาระบุ device_code" }); }
+//   if (!Type) { fs.unlinkSync(tempPath); return res.status(400).json({ message: "กรุณาระบุ Type" }); }
+
+//   const finalPath = `uploads/${fileName}`;
+//   fs.renameSync(tempPath, finalPath);
+//   const publicUrl = `http://smart-paddy.space/uploads/${fileName}`;
+
+//   try {
+//     // ================= CROP 3x3 ก่อนส่ง AI =================
+//     const cols = 3, rows = 3, overlap = 0.2;
+//     const imageBuffer = fs.readFileSync(finalPath);
+//     const metadata = await sharp(imageBuffer).metadata();
+//     const { width, height } = metadata;
+
+//     const cellWidth  = Math.floor(width  / (cols - (cols - 1) * overlap));
+//     const cellHeight = Math.floor(height / (rows - (rows - 1) * overlap));
+//     const stepX = Math.floor(cellWidth  * (1 - overlap));
+//     const stepY = Math.floor(cellHeight * (1 - overlap));
+
+//     const crops = [];
+//     for (let r = 0; r < rows; r++) {
+//       for (let c = 0; c < cols; c++) {
+//         const left = Math.min(c * stepX, width  - cellWidth);
+//         const top  = Math.min(r * stepY, height - cellHeight);
+
+//         const buf = await sharp(imageBuffer)
+//           .extract({ left, top, width: cellWidth, height: cellHeight })
+//           .toBuffer();
+
+//         crops.push({ name: `row${r+1}_col${c+1}`, buffer: buf });
+//       }
+//     }
+
+//     // ================= DEVICE =================
+//     const device = await prisma.Device.findFirst({ where: { device_code } });
+//     if (!device) return res.status(400).json({ message: "ไม่พบ device_code" });
+
+//     const registration = await prisma.device_registrations.findFirst({
+//       where: { Device: { device_code }, status: "active" },
+//       include: { Account: true, Area: { include: { Farm: true } } },
+//     });
+//     if (!registration) return res.status(400).json({ message: "ไม่พบ registration" });
+
+//     // ================= CALL AI (ส่งทีละ crop) =================
+//     const analysisResults = [];
+
+//     for (const crop of crops) {
+//       const formData = new FormData();
+//       formData.append("data", crop.buffer, {
+//         filename: `${crop.name}.png`,
+//         contentType: "image/png",
+//       });
+//       formData.append("Type", Type);
+//       formData.append("cell_name", crop.name);
+
+//       const response = await axios.post(
+//         "https://n8n.smart-paddy.space/webhook-test/35fa8b5a-ecde-497c-97ed-a63ea65c2ac",
+//         formData,
+//         { headers: formData.getHeaders(), timeout: 120000 }
+//       );
+
+//       analysisResults.push({
+//         cell: crop.name,
+//         result: response.data,
+//       });
+//     }
+
+//     // ================= รวมผล (เอา confidence สูงสุด) =================
+//     const best = analysisResults.reduce((prev, curr) => {
+//       const prevConf = Number(prev.result?.confidence) || 0;
+//       const currConf = Number(curr.result?.confidence) || 0;
+//       return currConf > prevConf ? curr : prev;
+//     });
+
+//     const result = best.result;
+//     const confidence = Number.isFinite(Number(result?.confidence))
+//       ? parseFloat(result.confidence) : 0;
+
+//     const targetUserId = registration?.Account?.user_id_line;
+//     const areaName     = registration?.Area?.area_name       || "ไม่ระบุพื้นที่";
+//     const farmName     = registration?.Area?.Farm?.farm_name || "ไม่ระบุฟาร์ม";
+//     const farmAddress  = registration?.Area?.Farm?.address   || "ไม่ระบุที่อยู่";
+
+//     // ================= SUCCESS =================
+//     if (result?.status === "success") {
+//       if (targetUserId) {
+//         let lineText = `📢 รายงานผล (${Type})\n`;
+//         lineText += `📍 ${farmName} (${areaName})\n`;
+//         lineText += `🏠 ${farmAddress}\n`;
+//         if (Type === "disease") {
+//           lineText += `📌 พบ: ${result.disease_name}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
+//         } else {
+//           lineText += `🌱 ระยะ: ${result.prediction}\n🎯 ${(confidence * 100).toFixed(2)}%\n\n💡 ${result.advice}`;
+//         }
+//         await sendLineMessage(targetUserId, lineText, publicUrl);
+//       }
+
+//       if (Type === "disease") {
+//         const diseaseInfo = DISEASE_DATA[result.disease_name] || DISEASE_DATA["ไม่ผ่านเกณฑ์"];
+//         await prisma.Disease_Analysis.create({
+//           data: {
+//             disease_name: result.disease_name,
+//             confidence,
+//             image_url: publicUrl,
+//             link: diseaseInfo.link,
+//             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//             advice: result.advice,
+//             device_registrations_ID: registration.device_registrations_ID,
+//           },
+//         });
+//       } else {
+//         const stageInfo = GROWTH_STAGE_DATA[result.prediction] || { link: null };
+//         await prisma.growth_Analysis.create({
+//           data: {
+//             growth_stage: result.prediction,
+//             image_url: publicUrl,
+//             link: stageInfo.link,
+//             type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//             advice: result.advice || "ไม่มีคำแนะนำ",
+//             confidence,
+//             device_registrations_ID: registration.device_registrations_ID,
+//           },
+//         });
+//       }
+
+//       return res.status(200).json({
+//         message: "วิเคราะห์สำเร็จ",
+//         imageUrl: publicUrl,
+//         analysisResult: result,
+//         allCells: analysisResults, // debug: ผลทุก cell
+//       });
+//     }
+
+//     // ================= FAIL =================
+//     if (Type === "disease") {
+//       await prisma.Disease_Analysis.create({
+//         data: {
+//           disease_name: "ไม่ผ่านเกณฑ์",
+//           confidence: null,
+//           image_url: publicUrl,
+//           type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//           advice: null,
+//           device_registrations_ID: registration.device_registrations_ID,
+//         },
+//       });
+//     } else {
+//       await prisma.growth_Analysis.create({
+//         data: {
+//           growth_stage: "ไม่ผ่านเกณฑ์",
+//           image_url: publicUrl,
+//           type: Usage === "user_upload" ? "USER_UPLOAD" : "ESP32",
+//           advice: null,
+//           confidence: null,
+//           device_registrations_ID: registration.device_registrations_ID,
+//         },
+//       });
+//     }
+
+//     return res.status(422).json({
+//       message: "ผลวิเคราะห์ไม่ผ่านเกณฑ์",
+//       reason: result?.reason || "Unknown",
+//     });
+
+//   } catch (error) {
+//     console.error("analyze_image error:", error.message);
+//     return res.status(500).json({ message: "ระบบวิเคราะห์ล้มเหลว", error: error.message });
+//   }
+// };
 
 // export const analyze_image = async (req, res) => {
 //   const { Type, device_code, Usage } = req.body || {};
