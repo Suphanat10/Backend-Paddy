@@ -8,7 +8,7 @@ import { checkdevice } from "./checkdevice.js";
 import { prisma } from "../../lib/prisma.js";
 const MQTT_HOST = "mqtt://76.13.213.127";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "9614eb4e-ba6d-00025215210204f9581250000000051688002700";
+const CLIENT_ID = "9614eb4e-ba6d-00025215204f9581250000000051688002700";
 const TOKEN = "qktv3FhWabKPPVyAAv3nrjkNXR6CQC79";
 const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
@@ -16,10 +16,10 @@ const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
 
 export const lastStatusCache = new Map();
-
-
-
 export const lastSensorCache = new Map();
+
+
+
 
 export const mqttClient = mqtt.connect(MQTT_HOST, {
   clientId: CLIENT_ID,

@@ -1,4 +1,4 @@
-import { login, register, RequestOTP, line_login, line_reg, logout, login_admin, VerifyOTP, verifyOtpAndResetPassword, lineOA_login, impersonateUser, exitImpersonation } from "../controllers/auth.controller.js";
+import { login, register, RequestOTP, line_login, line_reg, logout, login_admin, VerifyOTP, verifyOtpAndResetPassword, lineOA_login, impersonateUser, exitImpersonation, lineLink, lineUnlink } from "../controllers/auth.controller.js";
 // import { requireAuthMiddleware } from "../middleware/authJwt.js";
 import { requireAuthMiddleware, isAdmin } from "../middleware/authJwt.js";
 
@@ -28,4 +28,22 @@ export default function (app) {
 
   app.post("/api/admin/impersonate", requireAuthMiddleware, impersonateUser)
   app.post("/api/admin/exit-impersonation", requireAuthMiddleware, exitImpersonation)
+
+
+  app.post(
+    "/api/auth/line-link",
+    requireAuthMiddleware,
+    lineLink
+  )
+
+
+  app.post(
+    "/api/auth/line-unlink",
+    requireAuthMiddleware,
+    lineUnlink
+
+  )
 }
+
+
+

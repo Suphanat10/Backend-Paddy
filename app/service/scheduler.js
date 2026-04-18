@@ -305,21 +305,252 @@
 // export default initScheduler;
 
 
-import cron from "node-cron";
-import pLimit from "p-limit";
-import { prisma } from "../../lib/prisma.js";
+// import cron from "node-cron";
+// import pLimit from "p-limit";
+// import { prisma } from "../../lib/prisma.js";
 
+
+// let schedulerTask = null;
+// let currentCron = null;
+// let isJobRunning = false;
+
+// const limit = pLimit(5);
+
+// /* -----------------------------
+//    UTILITIES
+// ------------------------------*/
+// // ช่วยคำนวณจำนวนวันที่ต่างกันโดยไม่สนเศษของเวลา
+// const getDiffDays = (date1, date2) => {
+//     const d1 = new Date(date1).setHours(0, 0, 0, 0);
+//     const d2 = new Date(date2).setHours(0, 0, 0, 0);
+//     return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+// };
+
+// /* -----------------------------
+//    DEVICE STATUS LOG
+// ------------------------------*/
+// const logDeviceStatus = async (data) => {
+//     try {
+//         await prisma.scheduler_device_logs.create({
+//             data: {
+//                 device_id: data.device_id,
+//                 device_code: data.device_code,
+//                 status: data.status,
+//                 growth_period: data.growth_period,
+//                 days_since_last: data.days_since_last ?? null,
+//                 days_remaining: data.days_remaining ?? null,
+//                 message: data.message
+//             }
+//         });
+//     } catch (err) {
+//         console.error("Log insert error:", err.message);
+//     }
+// };
+
+// /* -----------------------------
+//    FAST DEVICE FETCH
+// ------------------------------*/
+// const getActiveDevices = async () => {
+//     try {
+//         return await prisma.$queryRaw`
+//             SELECT 
+//                 dr.device_registrations_ID,
+//                 d.device_ID,
+//                 d.device_code,
+//                 COALESCE(us.growth_analysis_period, 3) AS period,
+//                 ga.last_analysis
+//             FROM device_registrations dr
+//             JOIN Device d ON d.device_ID = dr.device_ID
+//             LEFT JOIN (
+//                 SELECT device_registrations_ID, MAX(created_at) AS last_analysis
+//                 FROM Growth_Analysis
+//                 WHERE type = 'ESP32'
+//                 GROUP BY device_registrations_ID
+//             ) ga ON ga.device_registrations_ID = dr.device_registrations_ID
+//             LEFT JOIN (
+//                 SELECT us1.device_registrations_ID, us1.growth_analysis_period
+//                 FROM User_Settings us1
+//                 WHERE us1.user_settings_ID IN (
+//                     SELECT MAX(user_settings_ID) FROM User_Settings GROUP BY device_registrations_ID
+//                 )
+//             ) us ON us.device_registrations_ID = dr.device_registrations_ID
+//             WHERE dr.status = 'active'
+//         `;
+//     } catch (error) {
+//         console.error("Fetch devices error:", error);
+//         return [];
+//     }
+// };
+
+// /* -----------------------------
+//    PROCESS DEVICE
+// ------------------------------*/
+// const processDevice = async (dev, today) => {
+//     const { device_ID: deviceId, device_code: deviceCode, period, last_analysis } = dev;
+
+//     let shouldCapture = false;
+//     let daysSinceLast = null;
+//     let daysRemaining = null;
+
+//     try {
+//         if (!last_analysis) {
+//             shouldCapture = true;
+//         } else {
+//             daysSinceLast = getDiffDays(last_analysis, today);
+//             daysRemaining = period - daysSinceLast;
+//             if (daysSinceLast >= period) shouldCapture = true;
+//         }
+
+//         if (shouldCapture) {
+//             // TODO: Queue photo capture command for device
+//             // This is where capturePhoto or similar function would be called
+//             // For now, just log that it's due
+//             console.log(`[CAPTURE SCHEDULED] Device ${deviceCode} is due for analysis`);
+
+//             await logDeviceStatus({
+//                 device_id: deviceId,
+//                 device_code: deviceCode,
+//                 status: "due",
+//                 growth_period: period,
+//                 days_since_last: daysSinceLast,
+//                 days_remaining: daysRemaining,
+//                 message: "Device due for analysis"
+//             });
+
+//             return "due";
+//         }
+
+//         // กรณีไม่ถึงกำหนด
+//         await logDeviceStatus({
+//             device_id: deviceId,
+//             device_code: deviceCode,
+//             status: "not_due",
+//             growth_period: period,
+//             days_since_last: daysSinceLast,
+//             days_remaining: daysRemaining,
+//             message: "Device not due for analysis"
+//         });
+
+//         return "not_due";
+
+//     } catch (error) {
+//         console.error(`Process Error [${deviceCode}]:`, error.message);
+//         return "error";
+//     }
+// };
+
+// /* -----------------------------
+//    SCHEDULER JOB
+// ------------------------------*/
+// const runSchedulerJob = async () => {
+//     if (isJobRunning) return;
+//     isJobRunning = true;
+
+//     console.log("Scheduler Job Started");
+
+
+//     try {
+//         const devices = await getActiveDevices();
+//         const today = new Date();
+
+//         const results = await Promise.all(
+//             devices.map(dev => limit(() => processDevice(dev, today)))
+//         );
+
+//         const stats = {
+//             total_devices: devices.length,
+//             due: results.filter(r => r === "due").length,
+//             not_due: results.filter(r => r === "not_due").length,
+//             errors: results.filter(r => r === "error").length
+//         };
+
+
+//         console.log(`Job Completed:`, stats);
+
+//     } catch (error) {
+//         console.error("Fatal Scheduler Error:", error);
+//     } finally {
+//         isJobRunning = false;
+//     }
+// };
+
+// /* -----------------------------
+//    LOAD/UPDATE SCHEDULER
+// ------------------------------*/
+// const loadScheduler = async () => {
+//     try {
+//         const settings = await prisma.system_settings.findFirst();
+//         if (!settings?.scheduler_time) return;
+
+//         // Parse time from Time field - handle both Date objects and strings
+//         // MySQL TIME fields are timezone-naive, so use UTC getters
+//         let hour, minute;
+        
+//         if (settings.scheduler_time instanceof Date) {
+//             // If it's a Date object, use UTC getters (no timezone conversion)
+//             hour = settings.scheduler_time.getUTCHours();
+//             minute = settings.scheduler_time.getUTCMinutes();
+//         } else {
+//             // If it's already a string like "22:34:00"
+//             const timeStr = String(settings.scheduler_time);
+//             [hour, minute] = timeStr.split(':').map(Number);
+//         }
+
+//         const cronExp = `${minute} ${hour} * * *`;
+
+//         if (cronExp === currentCron) return;
+
+//         if (schedulerTask) schedulerTask.stop();
+
+//         // Schedule with Asia/Bangkok timezone - time is stored without timezone, run at Bangkok local time
+//         schedulerTask = cron.schedule(cronExp, runSchedulerJob, {
+//             timezone: "Asia/Bangkok"
+//         });
+
+//         currentCron = cronExp;
+//         console.log(`Scheduler set to DB time: ${cronExp} (Asia/Bangkok)`);
+//     } catch (error) {
+//         console.error("Load Scheduler Error:", error);
+//     }
+// };
+
+// /* -----------------------------
+//    INIT & MONITOR
+// ------------------------------*/
+// const startDeviceStatusMonitor = () => {
+//     setInterval(async () => {
+//         const devices = await getActiveDevices();
+//         const today = new Date();
+//         devices.forEach(dev => {
+//             const daysSinceLast = dev.last_analysis ? getDiffDays(dev.last_analysis, today) : null;
+//             const status = (daysSinceLast === null || daysSinceLast >= dev.period) ? "due" : "not_due";
+//             // สามารถเพิ่ม logic อื่น ๆ ได้ที่นี่ หากต้องการ
+//             // ตัวอย่าง: console.log({ device: dev.device_code, status, growth_period: dev.period, days_since_last: daysSinceLast, days_remaining: daysSinceLast === null ? 0 : dev.period - daysSinceLast });
+//         });
+//     }, 10000);
+// };
+
+// const initScheduler = async () => {
+//     await loadScheduler();
+//     setInterval(loadScheduler, 60000);
+//     startDeviceStatusMonitor();
+//     console.log("Dynamic Scheduler System Initialized");
+// };
+
+// export default initScheduler;
+
+
+import cron from "node-cron";
+import { prisma } from "../../lib/prisma.js";
+import { mqttClient, sendDeviceCommand_takePhoto } from "./mqtt.js";
 
 let schedulerTask = null;
 let currentCron = null;
 let isJobRunning = false;
 
-const limit = pLimit(5);
-
 /* -----------------------------
    UTILITIES
 ------------------------------*/
-// ช่วยคำนวณจำนวนวันที่ต่างกันโดยไม่สนเศษของเวลา
 const getDiffDays = (date1, date2) => {
     const d1 = new Date(date1).setHours(0, 0, 0, 0);
     const d2 = new Date(date2).setHours(0, 0, 0, 0);
@@ -351,6 +582,7 @@ const logDeviceStatus = async (data) => {
    FAST DEVICE FETCH
 ------------------------------*/
 const getActiveDevices = async () => {
+
     try {
         return await prisma.$queryRaw`
             SELECT 
@@ -378,15 +610,22 @@ const getActiveDevices = async () => {
         `;
     } catch (error) {
         console.error("Fetch devices error:", error);
-        return [];
+        return []; 
     }
 };
+
+
 
 /* -----------------------------
    PROCESS DEVICE
 ------------------------------*/
 const processDevice = async (dev, today) => {
-    const { device_ID: deviceId, device_code: deviceCode, period, last_analysis } = dev;
+    const {
+        device_ID: deviceId,
+        device_code: deviceCode,
+        period,
+        last_analysis
+    } = dev;
 
     let shouldCapture = false;
     let daysSinceLast = null;
@@ -394,32 +633,55 @@ const processDevice = async (dev, today) => {
 
     try {
         if (!last_analysis) {
-            shouldCapture = true;
+            // ✅ ไม่มีข้อมูลการวิเคราะห์จริง → ตรวจ log ว่าเคยส่งคำสั่งไปภายใน period วันหรือยัง
+            const lastSent = await prisma.scheduler_device_logs.findFirst({
+                where: {
+                    device_code: deviceCode,
+                    status: "queued"
+                },
+                orderBy: { created_at: "desc" }
+            });
+
+            if (!lastSent) {
+                // ยังไม่เคยส่งเลย → ส่งครั้งแรก
+                shouldCapture = true;
+                daysSinceLast = null;
+                daysRemaining = period;
+            } else {
+                // เคยส่งแล้ว → ตรวจว่าครบ period วันหรือยัง
+                daysSinceLast = getDiffDays(lastSent.created_at, today);
+                daysRemaining = period - daysSinceLast;
+
+                if (daysSinceLast >= period) {
+                    shouldCapture = true;
+                }
+            }
         } else {
+            // มีข้อมูลการวิเคราะห์จริง → ใช้ last_analysis ตามปกติ
             daysSinceLast = getDiffDays(last_analysis, today);
             daysRemaining = period - daysSinceLast;
-            if (daysSinceLast >= period) shouldCapture = true;
+
+            if (daysSinceLast >= period) {
+                shouldCapture = true;
+            }
         }
 
         if (shouldCapture) {
-
-            const status = result.success ? "queued" : "error";
-            const message = result.success ? "Photo capture command queued" : result.reason;
+            sendDeviceCommand_takePhoto(mqttClient, deviceCode);
 
             await logDeviceStatus({
                 device_id: deviceId,
                 device_code: deviceCode,
-                status,
+                status: "queued",
                 growth_period: period,
                 days_since_last: daysSinceLast,
                 days_remaining: daysRemaining,
-                message
+                message: "Photo capture command sent"
             });
 
-            return status;
+            return "queued";
         }
 
-        // กรณีไม่ถึงกำหนด
         await logDeviceStatus({
             device_id: deviceId,
             device_code: deviceCode,
@@ -447,13 +709,12 @@ const runSchedulerJob = async () => {
 
     console.log("Scheduler Job Started");
 
-
     try {
         const devices = await getActiveDevices();
         const today = new Date();
 
         const results = await Promise.all(
-            devices.map(dev => limit(() => processDevice(dev, today)))
+            devices.map(dev => processDevice(dev, today))
         );
 
         const stats = {
@@ -462,7 +723,6 @@ const runSchedulerJob = async () => {
             not_due: results.filter(r => r === "not_due").length,
             errors: results.filter(r => r === "error").length
         };
-
 
         console.log(`Job Completed:`, stats);
 
@@ -482,10 +742,6 @@ const loadScheduler = async () => {
         if (!settings?.scheduler_time) return;
 
         const dateObj = new Date(settings.scheduler_time);
-
-
-
-        // ใช้ getUTC เพื่อดึงเลข 13 และ 35 ออกมาตรงๆ จากฐานข้อมูล
         const hour = dateObj.getUTCHours();
         const minute = dateObj.getUTCMinutes();
 
@@ -495,7 +751,6 @@ const loadScheduler = async () => {
 
         if (schedulerTask) schedulerTask.stop();
 
-        // รันโดยอิงเวลา Asia/Bangkok
         schedulerTask = cron.schedule(cronExp, runSchedulerJob, {
             timezone: "Asia/Bangkok"
         });
@@ -508,25 +763,11 @@ const loadScheduler = async () => {
 };
 
 /* -----------------------------
-   INIT & MONITOR
+   INIT
 ------------------------------*/
-const startDeviceStatusMonitor = () => {
-    setInterval(async () => {
-        const devices = await getActiveDevices();
-        const today = new Date();
-        devices.forEach(dev => {
-            const daysSinceLast = dev.last_analysis ? getDiffDays(dev.last_analysis, today) : null;
-            const status = (daysSinceLast === null || daysSinceLast >= dev.period) ? "due" : "not_due";
-            // สามารถเพิ่ม logic อื่น ๆ ได้ที่นี่ หากต้องการ
-            // ตัวอย่าง: console.log({ device: dev.device_code, status, growth_period: dev.period, days_since_last: daysSinceLast, days_remaining: daysSinceLast === null ? 0 : dev.period - daysSinceLast });
-        });
-    }, 30000);
-};
-
 const initScheduler = async () => {
     await loadScheduler();
     setInterval(loadScheduler, 60000);
-    startDeviceStatusMonitor();
     console.log("Dynamic Scheduler System Initialized");
 };
 

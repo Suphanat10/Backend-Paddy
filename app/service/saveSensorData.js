@@ -423,12 +423,18 @@ export const saveSensorData = async (data, device_code) => {
     let daysRemaining = 0;
 
     if (lastLog) {
-      // ใช้การ Reset เวลาเป็น 00:00:00 เพื่อเทียบวันที่แม่นยำ (Calendar Day)
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const lastDate = new Date(lastLog.measured_at);
-      const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+      // Get Bangkok time (UTC+7) as a date at midnight
+      const getBangkokMidnight = (date) => {
+          const d = new Date(date);
+          const thaiTime = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+          return new Date(thaiTime.getFullYear(), thaiTime.getMonth(), thaiTime.getDate(), 0, 0, 0, 0);
+      };
+      
+      // ใช้การ Reset เวลาเป็น 00:00:00 เพื่อเทียบวันที่แม่นยำ (Calendar Day) ใน Bangkok timezone
+      const todayMidnight = getBangkokMidnight(now);
+      const lastDayMidnight = getBangkokMidnight(lastLog.measured_at);
 
-      const diffTime = today - lastDay;
+      const diffTime = todayMidnight - lastDayMidnight;
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
       daysRemaining = intervalDays - diffDays;

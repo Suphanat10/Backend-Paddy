@@ -39,9 +39,15 @@ const io = new Server(server, {
 app.set("trust proxy", true);
 
 app.use(cors({
-  origin: ["http://localhost:3000", "https://smart-paddy.space"],
+  origin: [
+    "http://localhost:3000",
+    "https://smart-paddy.space",
+    "https://ungenerous-nonpulmonary-tama.ngrok-free.dev" // ✅ ลบ space
+  ],
   credentials: true,
 }));
+
+
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));

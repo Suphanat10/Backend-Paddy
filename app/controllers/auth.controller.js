@@ -763,3 +763,72 @@ export const exitImpersonation = async (req, res) => {
     return res.status(500).json({ message: "error" });
   }
 };
+
+
+
+export const lineLink = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { user_id_line } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!user_id_line) {
+      return res.status(400).json({ message: "user_id_line required" });
+    }
+    const existing = await prisma.account.findFirst({
+      where: { user_id_line }
+    });
+
+    if (existing && existing.user_ID !== userId) {
+      return res.status(400).json({
+        message: "LINE นี้ถูกใช้งานแล้ว"
+      });
+    }
+
+
+    await prisma.account.update({
+      where: { user_ID: userId },
+      data: {
+        user_id_line
+      }
+    });
+
+    return res.status(200).json({
+      message: "LINE linked successfully"
+    });
+
+  } catch (error) {
+    console.error("LINE LINK ERROR:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+export const lineUnlink = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    await prisma.account.update({
+      where: { user_ID: userId },
+      data: {
+        user_id_line: null
+      }
+    });
+
+    return res.status(200).json({
+      message: "LINE unlinked successfully"
+    });
+
+  } catch (error) {
+    console.error("LINE UNLINK ERROR:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
