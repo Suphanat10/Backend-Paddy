@@ -637,7 +637,7 @@ export const createDevice = async (req, res) => {
 
 export const deleteDevice = async (req, res) => {
   try {
-    const device_id = req.body.device_id;
+    const device_id = req.body.device_code;
 
     if (!device_id) {
       return res.status(400).json({ message: "Device ID is required" });
@@ -645,7 +645,7 @@ export const deleteDevice = async (req, res) => {
 
     const device = await prisma.Device.findFirst({
       where: {
-        device_ID: device_id,
+        device_code: device_id,
       }
     });
 
@@ -654,7 +654,7 @@ export const deleteDevice = async (req, res) => {
     }
 
     await prisma.Device.delete({
-      where: { device_ID: device_id }
+      where: { device_code: device_id }
     });
 
     res.status(200).json({ message: "ลบอุปกรณ์สำเร็จ" });
@@ -701,6 +701,73 @@ export const updateDevice = async (req, res) => {
 
 
 
+export const getAllPumpSystem = async (req, res) => {
+  try {
+    const farms = await prisma.farm.findMany({
+      include: {
+        Account: true, // 👈 เพิ่มเจ้าของฟาร์ม
+
+        Area: {
+          include: {
+            Pump: {
+              orderBy: { created_at: "desc" },
+            },
+            device_registrations: {
+              include: {
+                Device: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!farms || farms.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูลฟาร์มในระบบ" });
+    }
+
+    const response = farms.flatMap((farm) =>
+      (farm.Area || []).map((area) => ({
+        farm_id: farm.farm_id,
+        farm_name: farm.farm_name,
+        farm_address: farm.address,
+
+        // 👇 เจ้าของฟาร์ม
+        owner: {
+          user_id: farm.Account?.user_ID,
+          first_name: farm.Account?.first_name,
+          last_name: farm.Account?.last_name,
+          email: farm.Account?.email,
+        },
+
+        area_id: area.area_id,
+        area_name: area.area_name,
+
+        devices: (area.device_registrations || []).map((reg) => ({
+          device_registrations_id: reg.device_registrations_ID,
+          device_id: reg.device_ID,
+          device_code: reg.Device?.device_code,
+          device_status: reg.Device?.status,
+          registered_at: reg.registered_at,
+        })),
+
+        pumps: (area.Pump || []).map((p) => ({
+          pump_id: p.pump_ID,
+          pump_name: p.pump_name,
+          pump_status: p.status,
+          mac_address: p.mac_address,
+          created_at: p.created_at,
+        })),
+      }))
+    );
+
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error("Error getAllPumpSystem:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 export const getDeviceRegistrations = async (req, res) => {
   try {
 
@@ -1508,58 +1575,53 @@ export const ON_OFF_Pupm = async (req, res) => {
   try {
     const { pump_ID, command } = req.body;
 
-    if (!pump_ID) {
+    // 1. validate input
+    if (!pump_ID || !command) {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    if (!command) {
-      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    if (!["ON", "OFF"].includes(command)) {
+      return res.status(400).json({ message: "command ต้องเป็น ON หรือ OFF เท่านั้น" });
     }
 
-    const pump = await prisma.Pump.findFirst({
-      where: { pump_ID }
+    // 2. หา pump
+    const pump = await prisma.pump.findFirst({
+      where: { pump_ID: Number(pump_ID) },
     });
 
     if (!pump) {
-      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+      return res.status(404).json({ message: "ไม่พบปั๊มในระบบ" });
     }
 
-    const registration = await prisma.device_registrations.findFirst({
-      where: { user_ID: pump.user_ID }
-    });
-
-    if (!registration) {
-      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+    // 3. ตรวจ mac_address
+    if (!pump.mac_address) {
+      return res.status(400).json({ message: "Pump ไม่มี mac_address" });
     }
 
-    const device_code = await prisma.device.findFirst({
-      where: { device_ID: registration.device_ID }
-    });
+    // 4. ส่ง MQTT command
+    sendDeviceCommand_PUMP_OFF_ON(
+      mqttClient,
+      pump.mac_address,
+      command
+    );
 
-    const mac_address = pump.mac_address;
-
-    if (command === "OFF") {
-      sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, "OFF");
-    } else if (command === "ON") {
-      sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, "ON");
-    }
-
-    await prisma.Pump.update({
-      where: { pump_ID },
+    // 5. update status
+    await prisma.pump.update({
+      where: { pump_ID: pump.pump_ID },
       data: { status: command },
     });
 
     return res.status(200).json({
-      message: "สั่งอุปกรณ์สำเร็จ"
+      message: `สั่งปั๊ม ${command} สำเร็จ`,
+      pump_id: pump.pump_ID,
+      status: command,
     });
 
-
   } catch (error) {
-    console.error("Error ON_OFF_Pupm:", error);
+    console.error("Error ON_OFF_Pump:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 
 

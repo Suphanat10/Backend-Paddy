@@ -10,7 +10,7 @@ import { prisma } from "../../lib/prisma.js";
 ================================ */
 const MQTT_HOST = "mqtt://broker.netpie.io";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "df438c1c-464b-406a-96c8-9f65c2554155154180007f";
+const CLIENT_ID = "df438c1c-464b-406a-96c8-9f65c255415515411nbhvgj80007f";
 const TOKEN = "3EsTLkcm5EgRHvspwY7rMpCUGZEHpFiZ";
 const SECRET = "vSdY3Kpo25RYNP7ZFQU5uECbTuuC5ZYc";
 

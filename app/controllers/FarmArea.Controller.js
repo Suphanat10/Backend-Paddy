@@ -556,6 +556,17 @@ export const deleteDevice = async (req, res) => {
 
     sendDeviceCommand_disconnect(mqttClient, device_code);
 
+
+    await prisma.device.update({
+      where: {
+        device_code: device_code,
+      },
+      data: {
+        status: "inactive",
+      },
+    });
+
+
     return res.status(200).json({
       message: "ลบข้อมูลที่เกี่ยวข้องกับอุปกรณ์สำเร็จ และหยุดการทำงานของอุปกรณ์แล้ว"
     });
@@ -571,11 +582,7 @@ export const ON_OFF_Pupm = async (req, res) => {
   try {
     const { pump_ID, command } = req.body;
 
-    if (!pump_ID) {
-      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-    }
-
-    if (!command) {
+    if (!pump_ID || !command) {
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
@@ -584,39 +591,39 @@ export const ON_OFF_Pupm = async (req, res) => {
     });
 
     if (!pump) {
-      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+      return res.status(404).json({ message: "ไม่พบปั๊มในระบบ" });
     }
 
     const registration = await prisma.device_registrations.findFirst({
-      where: { user_ID: pump.user_ID }
+      where: { device_ID: pump.device_ID } // ✔ แก้จาก user_ID
     });
 
     if (!registration) {
-      return res.status(404).json({ message: "ไม่พบอุปกรณ์นี้ในระบบ" });
+      return res.status(404).json({ message: "ไม่พบ device registration" });
     }
-
-    const device_code = await prisma.device.findFirst({
-      where: { device_ID: registration.device_ID }
-
-    });
 
     const mac_address = pump.mac_address;
 
-    if (command === "OFF") {
-      sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, "OFF");
-    } else if (command === "ON") {
-      sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, "ON");
+    // ✔ normalize command
+    const cmd = command.toUpperCase();
+
+    if (cmd !== "ON" && cmd !== "OFF") {
+      return res.status(400).json({ message: "command ไม่ถูกต้อง" });
     }
 
+    // ✔ send MQTT (ควร await ถ้า async)
+    await sendDeviceCommand_PUMP_OFF_ON(mqttClient, mac_address, cmd);
+
+    // ✔ update DB
     await prisma.Pump.update({
       where: { pump_ID },
-      data: { status: command },
+      data: { status: cmd },
     });
 
     return res.status(200).json({
-      message: "สั่งอุปกรณ์สำเร็จ"
+      message: "สั่งอุปกรณ์สำเร็จ",
+      status: cmd
     });
-
 
   } catch (error) {
     console.error("Error ON_OFF_Pupm:", error);

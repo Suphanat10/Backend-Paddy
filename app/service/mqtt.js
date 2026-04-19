@@ -8,7 +8,7 @@ import { checkdevice } from "./checkdevice.js";
 import { prisma } from "../../lib/prisma.js";
 const MQTT_HOST = "mqtt://76.13.213.127";
 const MQTT_PORT = 1883;
-const CLIENT_ID = "9614eb4e-ba6d-00025215204f9581250000000051688002700";
+const CLIENT_ID = "9614eb4e-ba8002700tES0000";
 const TOKEN = "qktv3FhWabKPPVyAAv3nrjkNXR6CQC79";
 const SECRET = "JvkHoykFqQduFvf3t4NUCmNXUX2HM14x";
 
@@ -112,7 +112,6 @@ export default function connectMQTT(app, io) {
           N: data.N?.val,
           P: data.P?.val,
           K: data.K?.val,
-          pH: data.pH?.val ?? data.PH?.val ?? data.ph?.val,
           W: data.W?.val,
           water_level: data.W?.val,
         },

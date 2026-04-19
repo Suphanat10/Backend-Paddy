@@ -425,19 +425,19 @@ export const saveSensorData = async (data, device_code) => {
     if (lastLog) {
       // Get Bangkok time (UTC+7) as a date at midnight
       const getBangkokMidnight = (date) => {
-          const d = new Date(date);
-          const thaiTime = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-          return new Date(thaiTime.getFullYear(), thaiTime.getMonth(), thaiTime.getDate(), 0, 0, 0, 0);
+        const d = new Date(date);
+        const thaiTime = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+        return new Date(thaiTime.getFullYear(), thaiTime.getMonth(), thaiTime.getDate(), 0, 0, 0, 0);
       };
-      
+
       // ใช้การ Reset เวลาเป็น 00:00:00 เพื่อเทียบวันที่แม่นยำ (Calendar Day) ใน Bangkok timezone
       const todayMidnight = getBangkokMidnight(now);
       const lastDayMidnight = getBangkokMidnight(lastLog.measured_at);
 
-      const diffTime = todayMidnight - lastDayMidnight;
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const diffTime = todayMidnight - lastDayMidnight;  //เวลาปัจจุบัน - เวลาที่เก็บ log  
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));  //diffTime  = (จำนวนวัน) × 24 × 60 × 60 × 1000 ms
 
-      daysRemaining = intervalDays - diffDays;
+      daysRemaining = intervalDays - diffDays;  //เอารอบที่ตั้งไว้ (intervalDays)ลบด้วย วันที่ผ่านไปแล้ว (diffDays) = “เหลืออีกกี่วันถึงจะถึงรอบบันทึกครั้งถัดไป”
 
       console.log(`[${device_code}] ผ่านมาแล้ว: ${diffDays} วัน | รอบบันทึก: ${intervalDays} วัน | เหลืออีก: ${Math.max(0, daysRemaining)} วัน`);
 

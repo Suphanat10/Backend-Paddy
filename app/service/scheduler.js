@@ -485,7 +485,7 @@
 //         // Parse time from Time field - handle both Date objects and strings
 //         // MySQL TIME fields are timezone-naive, so use UTC getters
 //         let hour, minute;
-        
+
 //         if (settings.scheduler_time instanceof Date) {
 //             // If it's a Date object, use UTC getters (no timezone conversion)
 //             hour = settings.scheduler_time.getUTCHours();
@@ -610,7 +610,7 @@ const getActiveDevices = async () => {
         `;
     } catch (error) {
         console.error("Fetch devices error:", error);
-        return []; 
+        return [];
     }
 };
 
@@ -667,6 +667,7 @@ const processDevice = async (dev, today) => {
         }
 
         if (shouldCapture) {
+
             sendDeviceCommand_takePhoto(mqttClient, deviceCode);
 
             await logDeviceStatus({

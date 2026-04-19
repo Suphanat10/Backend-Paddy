@@ -42,7 +42,7 @@ app.use(cors({
   origin: [
     "http://localhost:3000",
     "https://smart-paddy.space",
-    "https://ungenerous-nonpulmonary-tama.ngrok-free.dev" // ✅ ลบ space
+
   ],
   credentials: true,
 }));

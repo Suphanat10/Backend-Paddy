@@ -179,6 +179,7 @@ export const updateSetting = async (req, res) => {
           Water_level_min: parseFloat(Water_level_min),
           data_send_interval_days: parseFloat(data_send_interval_days),
           Water_level_mxm: parseFloat(Water_level_max),
+          control_mode: "MANUAL",
           growth_analysis_period: parseFloat(growth_analysis_period),
         },
       });
@@ -188,6 +189,7 @@ export const updateSetting = async (req, res) => {
           Water_level_min: parseFloat(Water_level_min),
           data_send_interval_days: parseFloat(data_send_interval_days),
           Water_level_mxm: parseFloat(Water_level_max),
+          control_mode: "MANUAL",
           growth_analysis_period: parseFloat(growth_analysis_period),
 
           device_registrations: {

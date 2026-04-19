@@ -130,18 +130,33 @@ export const openPump = async (req, res) => {
     }
 
     const regCodeStr = String(reg_code);
-    const pump = await prisma.pump.upsert({
-      where: { mac_address: mac_address },
-      update: {
-        reg_code: regCodeStr,
-        status: "WAITING"
-      },
-      create: {
-        mac_address: mac_address,
-        reg_code: regCodeStr,
-        status: "WAITING"
-      }
+
+    // 🔍 เช็คก่อนว่าเคยมี device นี้ไหม
+    const existingPump = await prisma.pump.findFirst({
+      where: { mac_address }
     });
+
+    let pump;
+
+    if (existingPump) {
+      // ✔ เคยมีแล้ว → เปลี่ยนเป็น OFF
+      pump = await prisma.pump.update({
+        where: { mac_address },
+        data: {
+          reg_code: regCodeStr,
+          status: "OFF"
+        }
+      });
+    } else {
+      // ✔ ใหม่ → WAITING
+      pump = await prisma.pump.create({
+        data: {
+          mac_address,
+          reg_code: regCodeStr,
+          status: "WAITING"
+        }
+      });
+    }
 
     const token = jwt.sign(
       {
@@ -151,7 +166,6 @@ export const openPump = async (req, res) => {
       config.secret,
       { expiresIn: "30d" }
     );
-
 
     return res.status(200).json({
       message: "บันทึกข้อมูลอุปกรณ์สำเร็จ",
@@ -169,38 +183,51 @@ export const openPump = async (req, res) => {
 export const checkPump = async (req, res) => {
   try {
     const { reg_code, pump_name, area_id } = req.body;
-    const user_id = req.user.id;
+    const user_id = req.user?.id;
 
     if (!reg_code || !pump_name || !area_id) {
       return res.status(400).json({ message: "ข้อมูลไม่ครบ" });
     }
 
+    if (!user_id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const areaIdInt = parseInt(area_id);
+    if (isNaN(areaIdInt)) {
+      return res.status(400).json({ message: "area_id ไม่ถูกต้อง" });
+    }
+
     const pump = await prisma.pump.findFirst({
-      where: { reg_code: reg_code }
+      where: { reg_code }
     });
 
     if (!pump) {
-      return res.status(404).json({ message: "รหัสการลงทะเบียนไม่ถูกต้อง" });
+      return res.status(404).json({ message: "ไม่พบรหัสลงทะเบียนปั๊ม" });
     }
 
-    if (pump.status == "WAITING") {
-
-      const update = await prisma.pump.update({
-        where: {
-          pump_ID: pump.pump_ID
-        },
-        data: {
-          status: "OFF",
-          user_ID: user_id,
-          pump_name: pump_name,
-          area_id: parseInt(area_id)
-        }
+    if (pump.status !== "WAITING") {
+      return res.status(400).json({
+        message: "อุปกรณ์ไม่ได้อยู่ในสถานะรอเชื่อมต่อ"
       });
-
-      res.status(200).json({ message: "บันทึกข้อมูลอุปกรณ์สำเร็จ", update });
-    } else {
-      return res.status(400).json({ message: "ไม่พบการเชื่อมต่ออุปกรณ์ปั๊มน้ำ" });
     }
+
+    const update = await prisma.pump.update({
+      where: {
+        pump_ID: pump.pump_ID
+      },
+      data: {
+        status: "OFF",
+        user_ID: user_id,
+        pump_name,
+        area_id: areaIdInt
+      }
+    });
+
+    return res.status(200).json({
+      message: "เชื่อมต่ออุปกรณ์สำเร็จ",
+      update
+    });
 
   } catch (error) {
     console.error("Error connecting device:", error);
@@ -294,6 +321,7 @@ const sendLineMessage = async (userId, messageText) => {
   }
 };
 
+
 function getWaterLevelRecommend(growthStage) {
   const table = [
     { growthStage: "ระยะต้นกล้า", min: 5, max: 10 },
@@ -351,6 +379,49 @@ const GROWTH_STAGE_DATA = {
 
 
 
+
+const sendToFilteredAI = async (imagePath, Type) => {
+  try {
+    const imageBuffer = fs.readFileSync(imagePath);
+
+    const formData = new FormData();
+
+    // 🔥 แก้ตรงนี้
+    formData.append("data", imageBuffer, {
+      filename: "filtered.jpg",
+      contentType: "image/jpeg",
+    });
+
+    formData.append("Type", Type);
+
+    const response = await axios.post(
+      "https://n8n.smart-paddy.space/webhook/api/img/analyze_image",
+      formData,
+      {
+        headers: formData.getHeaders(),
+        timeout: 120000,
+      }
+    );
+
+    return Array.isArray(response.data)
+      ? response.data[0]
+      : response.data;
+
+  } catch (err) {
+    if (err.response && err.response.data) {
+      return Array.isArray(err.response.data)
+        ? err.response.data[0]
+        : err.response.data;
+    }
+
+    console.error("Filtered AI error:", err.message);
+    return null;
+  }
+};
+
+
+
+
 export const analyze_image = async (req, res) => {
   const { Type, device_code, Usage } = req.body || {};
 
@@ -389,6 +460,25 @@ export const analyze_image = async (req, res) => {
     const areaName = registration?.Area?.area_name || "ไม่ระบุพื้นที่";
     const farmName = registration?.Area?.Farm?.farm_name || "ไม่ระบุฟาร์ม";
     const farmAddress = registration?.Area?.Farm?.address || "ไม่ระบุที่อยู่";
+
+
+
+
+
+    const result = await sendToFilteredAI(finalPath, Type);
+
+    if (
+      result &&
+      result.category_name === "ไม่ใช่รูปต้นข้าว"
+    ) {
+      console.log("ไม่ใช่รูปต้นข้าว → ข้ามทั้งหมด");
+
+      return res.status(400).json({
+        message: "กรุณาอัปโหลดภาพต้นข้าว",
+        reason: result.reason,
+      });
+    }
+
 
     // ================= GROWTH =================
     if (Type === "growth") {
@@ -432,24 +522,32 @@ export const analyze_image = async (req, res) => {
 
         const stageInfo = GROWTH_STAGE_DATA[result.prediction] || { link: null };
 
-        // ดึงข้อมูล growth_stage ล่าสุดของอุปกรณ์นี้
-        const lastgrowthStage = await prisma.growth_Analysis.findFirst({
+        const controlMode = await prisma.User_Settings.findFirst({
           where: {
             device_registrations_ID: registration.device_registrations_ID,
           },
-          orderBy: {
-            created_at: "desc",
-          },
           select: {
-            growth_stage: true,
             control_mode: true,
           },
         });
 
+
         // เริ่มเซตระดับน้ำ 
         var waterLevelRecommend = null;
         // check auto mode
-        if (lastgrowthStage?.control_mode?.toUpperCase() === "AUTO") {
+        if (controlMode?.control_mode?.toUpperCase() === "AUTO") {
+          // ดึงข้อมูล growth_stage ล่าสุดของอุปกรณ์นี้
+          const lastgrowthStage = await prisma.growth_Analysis.findFirst({
+            where: {
+              device_registrations_ID: registration.device_registrations_ID,
+            },
+            orderBy: {
+              created_at: "desc",
+            },
+            select: {
+              growth_stage: true,
+            },
+          });
           if (lastgrowthStage) {
             //กรณีมี Stage เก่าแล้วไม่เหมือนกัน
             if (lastgrowthStage.growth_stage !== result.prediction) {
@@ -684,9 +782,6 @@ export const analyze_image = async (req, res) => {
     });
   }
 };
-
-
-
 
 export const extractBestFrame = async (req, res) => {
   // 1. ตรวจสอบไฟล์ที่ส่งมา
